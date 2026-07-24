@@ -1,0 +1,47 @@
+services:
+  devbox:
+    build: .
+    container_name: devbox
+    hostname: devbox
+    init: true
+    restart: unless-stopped
+    ports:
+      # Host 2223 -> sshd. 2222 is taken by VS Code's devcontainer forwarder.
+      - "2223:22"
+      # Next.js dev server.
+      - "3000:3000"
+    environment:
+      CARGO_PROFILE_DEV_DEBUG: "0"
+      CARGO_PROFILE_DEV_SPLIT_DEBUGINFO: "off"
+      CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_RUSTFLAGS: "-C link-arg=-fuse-ld=mold"
+      # One build dir for every project in the box. Cargo namespaces artifacts by
+      # package, so projects coexist and share compiled dependencies.
+      CARGO_TARGET_DIR: "/home/dev/.cache/cargo-target"
+      # sccache caches individual crate compilations across projects and clean
+      # builds. It cannot cache incremental units, so incremental is off —
+      # see the note in README-ish comments below.
+      RUSTC_WRAPPER: "sccache"
+      SCCACHE_DIR: "/home/dev/.cache/sccache"
+      SCCACHE_CACHE_SIZE: "20G"
+      CARGO_INCREMENTAL: "0"
+      # Read from ./.env (Compose loads it automatically). gh picks GH_TOKEN up
+      # with no `gh auth login` step. Empty default so a missing .env isn't fatal.
+      GH_TOKEN: "${GH_TOKEN:-}"
+    volumes:
+      - ${HOME}/.ssh/id_ed25519.pub:/tmp/host_key.pub:ro
+      - workspace:/home/dev/workspace
+      - cargo-registry:/home/dev/.cargo/registry
+      - target-cache:/home/dev/.cache/cargo-target
+      - sccache:/home/dev/.cache/sccache
+      # Keeps the Claude Code login and settings across rebuilds.
+      - claude-config:/home/dev/.claude
+      # ~750MB of VS Code server; without this every rebuild re-downloads it.
+      - vscode-server:/home/dev/.vscode-server
+
+volumes:
+  workspace:
+  cargo-registry:
+  target-cache:
+  sccache:
+  claude-config:
+  vscode-server:
