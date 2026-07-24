@@ -104,8 +104,8 @@ RUN printf 'export PATH=/home/%s/.cargo/bin:$PATH\n' "${USERNAME}" > /etc/profil
 # Cargo has to be here or it is invisible to non-login shells.
 RUN sed -i "s|^PATH=\"|PATH=\"/home/${USERNAME}/.cargo/bin:|" /etc/environment
 
-COPY entrypoint.sh /usr/local/bin/entrypoint.sh
-RUN chmod +x /usr/local/bin/entrypoint.sh
+COPY entrypoint.sh user-setup.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/entrypoint.sh /usr/local/bin/user-setup.sh
 
 EXPOSE 22
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
