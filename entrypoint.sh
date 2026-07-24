@@ -35,7 +35,7 @@ done
 
 # Secrets go only in files the dev user alone can read — /etc/profile.d is
 # world-readable, so a token must never be written there.
-for var in GH_TOKEN; do
+for var in GH_TOKEN CLAUDE_CODE_OAUTH_TOKEN; do
     [ -n "${!var-}" ] || continue
     echo "${var}=${!var}" >> "${SSH_DIR}/environment"
     echo "export ${var}=\"${!var}\"" >> "${SECRETS_FILE}"
