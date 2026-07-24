@@ -83,12 +83,17 @@ RUN mkdir -p \
 # Key-only SSH. PermitUserEnvironment lets the entrypoint hand the CARGO_* vars
 # to non-interactive sessions (`ssh devbox cargo build`), which otherwise inherit
 # nothing from the daemon.
-RUN mkdir -p /run/sshd \
+# Host keys live on a volume, not in the image: image-baked keys are regenerated
+# by every rebuild, so the container looks like a different machine each time and
+# strict SSH clients (Orca, and anything using known_hosts) refuse to connect.
+RUN mkdir -p /run/sshd /etc/ssh/host-keys \
     && printf '%s\n' \
         'PasswordAuthentication no' \
         'PubkeyAuthentication yes' \
         'PermitRootLogin no' \
         'PermitUserEnvironment yes' \
+        'HostKey /etc/ssh/host-keys/ssh_host_ed25519_key' \
+        'HostKey /etc/ssh/host-keys/ssh_host_rsa_key' \
         > /etc/ssh/sshd_config.d/devbox.conf
 
 USER ${USERNAME}

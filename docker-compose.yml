@@ -33,6 +33,12 @@ services:
       # Password for `sudo` inside the container. Leave unset to disable sudo
       # entirely; root work then goes through `docker exec -u root`.
       SUDO_PASSWORD: "${SUDO_PASSWORD:-}"
+      # GitHub's published SSH host key, written to /etc/ssh/ssh_known_hosts at
+      # startup. Public data, so the default lives here (committed) rather than
+      # in .env (gitignored, which would leave a fresh clone broken). Override in
+      # .env if GitHub rotates it — takes effect on `up -d`, no rebuild needed.
+      # Current fingerprint: SHA256:+DiY3wvvV6TuJJhbpZisF/zLDA0zPMSvHdkr4UvCOqU
+      GITHUB_KNOWN_HOSTS: "${GITHUB_KNOWN_HOSTS:-github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl}"
     volumes:
       - ${HOME}/.ssh/id_ed25519.pub:/tmp/host_key.pub:ro
       - workspace:/home/dev/workspace
@@ -48,6 +54,8 @@ services:
       - orca:/home/dev/.orca
       - orca-relay:/home/dev/.orca-relay
       - orca-remote:/home/dev/.orca-remote
+      # Stable SSH identity across rebuilds; image-baked keys change every build.
+      - ssh-host-keys:/etc/ssh/host-keys
 
 volumes:
   workspace:
@@ -59,3 +67,4 @@ volumes:
   orca:
   orca-relay:
   orca-remote:
+  ssh-host-keys:

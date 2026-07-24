@@ -50,6 +50,17 @@ fi
 mkdir -p "${CARGO_TARGET_DIR:-${HOME}/.cache/cargo-target}" \
          "${SCCACHE_DIR:-${HOME}/.cache/sccache}"
 
+# Authenticate git from GH_TOKEN rather than a forwarded SSH agent. Tools that
+# connect without agent forwarding — Orca, unattended agents, cron — otherwise
+# fail every fetch with "Permission denied (publickey)". SSH remotes are
+# rewritten to HTTPS so existing clones keep working untouched.
+if [ -n "${GH_TOKEN:-}" ] && command -v gh >/dev/null; then
+    git config --global credential."https://github.com".helper '!gh auth git-credential'
+    git config --global --unset-all url."https://github.com/".insteadOf 2>/dev/null || true
+    git config --global --add url."https://github.com/".insteadOf 'git@github.com:'
+    git config --global --add url."https://github.com/".insteadOf 'ssh://git@github.com/'
+fi
+
 # ~/.claude.json holds Claude Code's onboarding state and its per-project session
 # index. It sits outside the .claude volume, so a rebuild both reset the login/
 # onboarding picker and orphaned every past session. Keep the real file inside
