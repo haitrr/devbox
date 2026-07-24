@@ -61,4 +61,35 @@ chown "${USERNAME}:${USERNAME}" \
     "${HOME_DIR}/.claude" "${HOME_DIR}/.vscode-server"
 [ -d "${HOME_DIR}/.cargo" ] && chown -R "${USERNAME}:${USERNAME}" "${HOME_DIR}/.cargo"
 
+# ~/.claude.json holds Claude Code's onboarding state and its per-project session
+# index. It sits outside the .claude volume, so a rebuild both reset the login/
+# onboarding picker and orphaned every past session. Keep the real file inside
+# the volume and symlink it into place.
+CLAUDE_JSON="${HOME_DIR}/.claude.json"
+CLAUDE_JSON_STORE="${HOME_DIR}/.claude/claude.json"
+
+if [ ! -L "${CLAUDE_JSON}" ]; then
+    # Preserve an existing real file on first migration rather than dropping it.
+    if [ -f "${CLAUDE_JSON}" ] && [ ! -f "${CLAUDE_JSON_STORE}" ]; then
+        mv "${CLAUDE_JSON}" "${CLAUDE_JSON_STORE}"
+    fi
+    rm -f "${CLAUDE_JSON}"
+    [ -f "${CLAUDE_JSON_STORE}" ] || echo '{}' > "${CLAUDE_JSON_STORE}"
+    ln -s "${CLAUDE_JSON_STORE}" "${CLAUDE_JSON}"
+fi
+node -e '
+const fs = require("fs");
+const p = process.argv[1];
+let d = {};
+try { d = JSON.parse(fs.readFileSync(p, "utf8")); } catch (e) { /* missing or corrupt */ }
+if (d.hasCompletedOnboarding !== true) {
+    d.hasCompletedOnboarding = true;
+    fs.writeFileSync(p, JSON.stringify(d, null, 2));
+    console.log("seeded hasCompletedOnboarding in " + p);
+}
+' "${CLAUDE_JSON_STORE}" || echo "WARNING: could not seed ${CLAUDE_JSON_STORE}" >&2
+chown -h "${USERNAME}:${USERNAME}" "${CLAUDE_JSON}"
+chown "${USERNAME}:${USERNAME}" "${CLAUDE_JSON_STORE}"
+chmod 600 "${CLAUDE_JSON_STORE}"
+
 exec "$@"
