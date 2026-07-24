@@ -54,12 +54,31 @@ RUN mkdir -p -m 755 /etc/apt/keyrings \
     && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends gh \
     && rm -rf /var/lib/apt/lists/*
 
-# Unprivileged user with passwordless sudo. The account password stays locked:
-# login is by SSH key only.
+# Unprivileged user. sudo requires a password, so a process running as this user
+# cannot silently escalate to root. The entrypoint sets the password from
+# SUDO_PASSWORD; with none set the account stays locked and sudo is unusable.
+# SSH login is by key only either way (PasswordAuthentication no).
 RUN useradd --create-home --shell /bin/bash ${USERNAME} \
-    && echo "${USERNAME} ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/${USERNAME} \
+    && echo "${USERNAME} ALL=(ALL) ALL" > /etc/sudoers.d/${USERNAME} \
     && chmod 0440 /etc/sudoers.d/${USERNAME} \
     && passwd --lock ${USERNAME}
+
+# Create every volume mountpoint here, owned by the user. A named volume seeds
+# itself from the image's content at that path *including ownership*; when the
+# path is absent from the image, Docker instead creates it empty and root-owned,
+# which the entrypoint would then have to chown on every start.
+RUN mkdir -p \
+        /home/${USERNAME}/workspace \
+        /home/${USERNAME}/.claude \
+        /home/${USERNAME}/.config \
+        /home/${USERNAME}/.vscode-server \
+        /home/${USERNAME}/.orca \
+        /home/${USERNAME}/.orca-relay \
+        /home/${USERNAME}/.orca-remote \
+        /home/${USERNAME}/.cargo/registry \
+        /home/${USERNAME}/.cache/cargo-target \
+        /home/${USERNAME}/.cache/sccache \
+    && chown -R ${USERNAME}:${USERNAME} /home/${USERNAME}
 
 # Key-only SSH. PermitUserEnvironment lets the entrypoint hand the CARGO_* vars
 # to non-interactive sessions (`ssh devbox cargo build`), which otherwise inherit

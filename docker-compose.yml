@@ -30,6 +30,9 @@ services:
       # Long-lived subscription token from `claude setup-token` on the host.
       # Not ANTHROPIC_API_KEY — that would bill API credits instead of the plan.
       CLAUDE_CODE_OAUTH_TOKEN: "${CLAUDE_CODE_OAUTH_TOKEN:-}"
+      # Password for `sudo` inside the container. Leave unset to disable sudo
+      # entirely; root work then goes through `docker exec -u root`.
+      SUDO_PASSWORD: "${SUDO_PASSWORD:-}"
     volumes:
       - ${HOME}/.ssh/id_ed25519.pub:/tmp/host_key.pub:ro
       - workspace:/home/dev/workspace
@@ -40,6 +43,11 @@ services:
       - claude-config:/home/dev/.claude
       # ~750MB of VS Code server; without this every rebuild re-downloads it.
       - vscode-server:/home/dev/.vscode-server
+      # Orca (onorca.dev) pushes a ~65MB remote component in over SSH, same
+      # shape as vscode-server, plus session state in ~/.orca.
+      - orca:/home/dev/.orca
+      - orca-relay:/home/dev/.orca-relay
+      - orca-remote:/home/dev/.orca-remote
 
 volumes:
   workspace:
@@ -48,3 +56,6 @@ volumes:
   sccache:
   claude-config:
   vscode-server:
+  orca:
+  orca-relay:
+  orca-remote:
