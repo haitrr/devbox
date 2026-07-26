@@ -22,9 +22,11 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-ins
         wget \
     && rm -rf /var/lib/apt/lists/*
 
-# Node LTS from NodeSource, plus the Next.js CLI for scaffolding.
+# Node LTS from NodeSource, plus the Next.js CLI for scaffolding. Corepack ships
+# with Node and manages pnpm/yarn per-project via the packageManager field.
 RUN curl -fsSL https://deb.nodesource.com/setup_${NODE_MAJOR}.x | bash - \
     && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends nodejs \
+    && corepack enable \
     && npm install -g next @anthropic-ai/claude-code \
     && rm -rf /var/lib/apt/lists/*
 
