@@ -1,0 +1,76 @@
+#!/usr/bin/env bash
+# cargo shim — sccache for the cold build, incremental for the inner loop.
+#
+# Why: sccache and CARGO_INCREMENTAL are mutually exclusive (sccache refuses to
+# run as a rustc wrapper when incremental is on). Their value is temporally
+# disjoint, though:
+#   * sccache only pays off on the FIRST build of a fresh worktree — it warms
+#     the dependency graph from the global cache. After deps land in ./target,
+#     cargo's fingerprint keeps them fresh and never re-invokes rustc for them,
+#     so sccache does nothing on later builds.
+#   * incremental only pays off on builds 2..N — it lets an edited local crate
+#     recompile just its changed codegen units instead of the whole crate.
+#
+# So: cold build uses sccache (incremental off); once the worktree is warmed we
+# switch to incremental (sccache off) for fast edit-rebuild loops. The switch is
+# recorded by a sentinel inside the target dir, so it is one-directional per
+# worktree (no 0<->1 toggling, which would thrash local-crate fingerprints).
+#
+# Installed at ~/.local/bin/cargo, ahead of ~/.cargo/bin on PATH. The real cargo
+# (rustup's proxy) is called by absolute path so this never recurses.
+#
+# Caveats (see the PR discussion):
+#   * The switch costs a one-time recompile of your local crates (turning
+#     incremental on changes their rustc flags, invalidating their fingerprint).
+#     Deps are unaffected — they are never incremental.
+#   * Warm your worktree with `cargo build`, not `cargo check`. A cold `check`
+#     only produces dep .rmeta; a later `build` (now with sccache off) would then
+#     have to codegen every dep from scratch. `build` seeds both.
+#   * Concurrency: if two builds start in the same worktree before the sentinel
+#     is written, one may run cold while the other runs warm and they will
+#     invalidate each other's local fingerprints once. Harmless but wasteful.
+#   * `cargo clean` wipes the target dir including the sentinel, so the next
+#     build correctly starts cold again.
+set -euo pipefail
+
+REAL_CARGO="${HOME:-/home/dev}/.cargo/bin/cargo"
+[ -x "$REAL_CARGO" ] || REAL_CARGO="$(command -v -- cargo | grep -v "$0" | head -n1 || true)"
+
+# First positional that is not a flag (-v) or toolchain override (+nightly).
+subcmd=""
+for a in "$@"; do
+    case "$a" in
+        -*|+*) continue ;;
+        *) subcmd="$a"; break ;;
+    esac
+done
+
+# Only compile-producing subcommands care about sccache-vs-incremental.
+case "$subcmd" in
+    build|b|check|c|test|t|run|r|bench|clippy|rustc|doc) ;;
+    *) exec "$REAL_CARGO" "$@" ;;   # fmt, tree, add, metadata, ... pass straight through
+esac
+
+# Locate this build's target dir so the sentinel travels with it.
+if [ -n "${CARGO_TARGET_DIR:-}" ]; then
+    target_dir="$CARGO_TARGET_DIR"
+else
+    root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+    target_dir="$root/target"
+fi
+sentinel="$target_dir/.sccache-warmed"
+
+if [ -f "$sentinel" ]; then
+    # Warm: fast inner loop. incremental on, sccache off.
+    exec env -u RUSTC_WRAPPER CARGO_INCREMENTAL=1 "$REAL_CARGO" "$@"
+fi
+
+# Cold: warm the dependency graph from sccache. incremental off (required).
+status=0
+env RUSTC_WRAPPER=sccache CARGO_INCREMENTAL=0 "$REAL_CARGO" "$@" || status=$?
+# Only flip to warm after a successful cold build, so a failed build retries cold.
+if [ "$status" -eq 0 ]; then
+    mkdir -p "$target_dir"
+    : > "$sentinel"
+fi
+exit "$status"
