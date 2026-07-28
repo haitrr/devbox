@@ -3,16 +3,19 @@ FROM ubuntu:24.04
 ARG USERNAME=dev
 ARG NODE_MAJOR=22
 ARG SCCACHE_VERSION=v0.16.0
+# mold is installed from upstream releases below, not the Ubuntu archive: 24.04
+# ships mold 2.30 (Mar 2024), and upstream is far ahead. Bump this to upgrade.
+ARG MOLD_VERSION=v2.41.0
 
-# Base toolchain + sshd. mold comes from the Ubuntu archive (24.04 ships mold 2.x).
+# Base toolchain + sshd.
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
         build-essential \
         ca-certificates \
         curl \
         git \
         less \
+        libatomic1 \
         libssl-dev \
-        mold \
         openssh-server \
         pkg-config \
         ripgrep \
@@ -44,6 +47,21 @@ RUN arch="$(dpkg --print-architecture)" \
     && install -m 0755 "/tmp/sccache-${SCCACHE_VERSION}-${target}/sccache" /usr/local/bin/sccache \
     && rm -rf "/tmp/sccache-${SCCACHE_VERSION}-${target}" \
     && sccache --version
+
+# mold — upstream prebuilt release (Ubuntu 24.04's archive lags years behind).
+# The tarball is a /usr/local-style prefix (bin/mold, bin/ld.mold, lib/mold/
+# mold-wrapper.so), so --strip-components=1 into /usr/local installs a complete,
+# working linker; both `mold` and `ld.mold` land on PATH for -fuse-ld=mold.
+RUN arch="$(dpkg --print-architecture)" \
+    && case "${arch}" in \
+         arm64) target=aarch64-linux ;; \
+         amd64) target=x86_64-linux ;; \
+         *) echo "unsupported architecture: ${arch}" >&2; exit 1 ;; \
+       esac \
+    && ver="${MOLD_VERSION#v}" \
+    && curl -fsSL "https://github.com/rui314/mold/releases/download/${MOLD_VERSION}/mold-${ver}-${target}.tar.gz" \
+       | tar -xz --strip-components=1 -C /usr/local \
+    && mold --version
 
 # GitHub CLI from GitHub's own apt repo (the Ubuntu archive version lags).
 RUN mkdir -p -m 755 /etc/apt/keyrings \
