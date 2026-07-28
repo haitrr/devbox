@@ -103,13 +103,21 @@ RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
     | sh -s -- -y --no-modify-path --profile minimal --component clippy --component rustfmt
 
 USER root
-# Interactive shells get cargo on PATH; the entrypoint appends the CARGO_* vars here.
-RUN printf 'export PATH=/home/%s/.cargo/bin:$PATH\n' "${USERNAME}" > /etc/profile.d/devbox-path.sh
+# Cargo shim: sccache for a worktree's cold build, then incremental for the inner
+# loop (see cargo-shim.sh). Installed ahead of ~/.cargo/bin so plain `cargo` hits
+# it; the shim calls the real cargo by absolute path.
+COPY cargo-shim.sh /home/${USERNAME}/.local/bin/cargo
+RUN chmod 0755 /home/${USERNAME}/.local/bin/cargo \
+    && chown -R ${USERNAME}:${USERNAME} /home/${USERNAME}/.local
+
+# Interactive shells get the shim, then cargo, on PATH; the entrypoint appends the
+# CARGO_* vars here.
+RUN printf 'export PATH=/home/%s/.local/bin:/home/%s/.cargo/bin:$PATH\n' "${USERNAME}" "${USERNAME}" > /etc/profile.d/devbox-path.sh
 
 # Non-interactive SSH (`ssh devbox cargo build`) gets PATH from /etc/environment
 # via pam_env, which runs after sshd reads ~/.ssh/environment and overrides it.
-# Cargo has to be here or it is invisible to non-login shells.
-RUN sed -i "s|^PATH=\"|PATH=\"/home/${USERNAME}/.cargo/bin:|" /etc/environment
+# The shim and cargo have to be here or they are invisible to non-login shells.
+RUN sed -i "s|^PATH=\"|PATH=\"/home/${USERNAME}/.local/bin:/home/${USERNAME}/.cargo/bin:|" /etc/environment
 
 COPY entrypoint.sh user-setup.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/entrypoint.sh /usr/local/bin/user-setup.sh
