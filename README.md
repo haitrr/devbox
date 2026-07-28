@@ -4,6 +4,24 @@ A containerized dev environment reachable over SSH, with a persistent
 workspace, cargo/sccache caches, and Claude Code/Orca state that survive
 rebuilds.
 
+## Preinstalled tooling
+
+Beyond the base toolchain (Rust via rustup, Node LTS, `gh`, `sccache`, `mold`,
+`ripgrep`, Claude Code):
+
+| | |
+| --- | --- |
+| Shell / files | `fd`, `tree`, `bat`, `delta` (git-delta), `lsof`, `nc` (netcat-openbsd), `zstd`, `time` |
+| Data | `jq`, `yq` (mikefarah), `sqlite3`, `duckdb` |
+| Build / bench | `just`, `hyperfine` |
+| Lint | `shellcheck`, `shfmt` |
+| Security | `trivy`, `cargo-deny` |
+| Cargo | `cargo-nextest`, `cargo-expand`, `cargo-machete` |
+
+Versions are pinned as `ARG`s at the top of the `Dockerfile` for anything not
+taken from the Ubuntu archive. `cargo expand` additionally needs a nightly
+rustc — run `rustup toolchain install nightly --profile minimal` inside the box.
+
 ## Setup
 
 1. **SSH key.** The container authenticates you with your host's public key,
