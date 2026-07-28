@@ -34,20 +34,46 @@
 set -euo pipefail
 
 REAL_CARGO="${HOME:-/home/dev}/.cargo/bin/cargo"
-[ -x "$REAL_CARGO" ] || REAL_CARGO="$(command -v -- cargo | grep -v "$0" | head -n1 || true)"
+if [ ! -x "$REAL_CARGO" ]; then
+    # Fallback: the first cargo on PATH that is not this shim. `command -v` only
+    # ever prints its first match (the shim itself), so grep-ing it out leaves
+    # nothing — we have to walk PATH by hand and compare resolved paths.
+    self="$(realpath -- "$0" 2>/dev/null || echo "$0")"
+    REAL_CARGO=""
+    saved_ifs="$IFS"; IFS=:
+    for dir in $PATH; do
+        cand="$dir/cargo"
+        [ -x "$cand" ] || continue
+        [ "$(realpath -- "$cand" 2>/dev/null || echo "$cand")" = "$self" ] && continue
+        REAL_CARGO="$cand"; break
+    done
+    IFS="$saved_ifs"
+fi
+if [ -z "$REAL_CARGO" ] || [ ! -x "$REAL_CARGO" ]; then
+    echo "cargo-shim: cannot locate the real cargo (checked ~/.cargo/bin/cargo and \$PATH)" >&2
+    exit 127
+fi
 
-# First positional that is not a flag (-v) or toolchain override (+nightly).
+# First positional that is not a flag (-v), a toolchain override (+nightly), or
+# the value consumed by a value-taking global flag. Without the skip,
+# `cargo -Z unstable-options build` would latch onto unstable-options as the
+# subcommand and pass straight through in the cold config.
 subcmd=""
+skip_next=0
 for a in "$@"; do
+    if [ "$skip_next" = 1 ]; then skip_next=0; continue; fi
     case "$a" in
+        -Z|-C|--color|--config) skip_next=1; continue ;;
         -*|+*) continue ;;
         *) subcmd="$a"; break ;;
     esac
 done
 
-# Only compile-producing subcommands care about sccache-vs-incremental.
+# Only compile-producing subcommands care about sccache-vs-incremental. nextest
+# is here because CLAUDE.md mandates `cargo nextest run` for tests — omitting it
+# would route the entire test inner loop through the cold config unconditionally.
 case "$subcmd" in
-    build|b|check|c|test|t|run|r|bench|clippy|rustc|doc) ;;
+    build|b|check|c|test|t|run|r|bench|clippy|rustc|doc|nextest) ;;
     *) exec "$REAL_CARGO" "$@" ;;   # fmt, tree, add, metadata, ... pass straight through
 esac
 
