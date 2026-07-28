@@ -20,13 +20,14 @@ services:
       # directory"), which reads as a hang under non-interactive/agent runs.
       # sccache (below) already shares compiled deps across projects safely.
       # sccache caches individual crate compilations across projects and clean
-      # builds. Dependencies are never compiled incrementally, so they stay
-      # sccache-cached even with incremental on; incremental only affects local
-      # crates, giving fast edit-rebuild loops within a worktree's lifetime.
+      # builds, shared globally so any worktree benefits. It refuses to run as a
+      # rustc wrapper when incremental is enabled ("incremental compilation is
+      # prohibited"), so CARGO_INCREMENTAL must stay 0 — the two are mutually
+      # exclusive. We keep sccache for cross-worktree dependency reuse.
       RUSTC_WRAPPER: "sccache"
       SCCACHE_DIR: "/home/dev/.cache/sccache"
       SCCACHE_CACHE_SIZE: "20G"
-      CARGO_INCREMENTAL: "1"
+      CARGO_INCREMENTAL: "0"
       # Read from ./.env (Compose loads it automatically). gh picks GH_TOKEN up
       # with no `gh auth login` step. Empty default so a missing .env isn't fatal.
       GH_TOKEN: "${GH_TOKEN:-}"
