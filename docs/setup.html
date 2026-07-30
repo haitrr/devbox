@@ -137,7 +137,7 @@
   volumes; work lives in <code>~/workspace</code>. Clients attach from outside over one SSH port.</p>
 
   <figure class="figure viz scroll" style="margin:0">
-    <svg viewBox="0 0 1000 420" role="img"
+    <svg viewBox="0 0 1000 452" role="img"
          aria-label="Topology: three macOS clients connect over SSH on port 2223 to the devbox container, whose state lives on nine named Docker volumes.">
       <defs>
         <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
@@ -171,7 +171,7 @@
       <text class="s-t sm" x="230" y="132">key-only</text>
 
       <!-- container -->
-      <rect x="316" y="8" width="396" height="396" rx="14"
+      <rect x="316" y="8" width="396" height="428" rx="14"
             fill="var(--dgm-panel)" stroke="var(--accent)" stroke-opacity=".55"/>
       <text class="s-t hd" x="332" y="30" fill="var(--accent)">CONTAINER · devbox</text>
       <text class="s-t sm" x="332" y="46">ubuntu 24.04 · init: true · restart: unless-stopped</text>
@@ -189,7 +189,7 @@
       <rect class="s-box" x="520" y="158" width="176" height="34" rx="8"/>
       <text class="s-t" x="532" y="179">node 22 · corepack</text>
       <rect class="s-box" x="332" y="200" width="176" height="34" rx="8"/>
-      <text class="s-t" x="344" y="221">gh 2.96 · ripgrep</text>
+      <text class="s-t" x="344" y="221">gh · ripgrep · fd</text>
       <rect class="s-box" x="520" y="200" width="176" height="34" rx="8"/>
       <text class="s-t" x="532" y="221">Claude Code</text>
       <rect class="s-box" x="332" y="242" width="176" height="34" rx="8"/>
@@ -204,6 +204,8 @@
 
       <text class="s-t sm" x="332" y="360">boot: entrypoint.sh (root) → user-setup.sh (dev) → sshd</text>
       <text class="s-t sm" x="332" y="378">sudo needs SUDO_PASSWORD; unset ⇒ disabled entirely</text>
+      <text class="s-t sm" x="332" y="400">plus jq · yq · just · hyperfine · shellcheck · shfmt</text>
+      <text class="s-t sm" x="332" y="415">trivy · cargo-nextest · cargo-expand · bat · delta</text>
 
       <!-- volumes -->
       <path class="s-l" d="M712,180 H734" marker-end="url(#ah)"/>
