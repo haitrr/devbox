@@ -6,6 +6,18 @@ ARG SCCACHE_VERSION=v0.16.0
 # mold is installed from upstream releases below, not the Ubuntu archive: 24.04
 # ships mold 2.30 (Mar 2024), and upstream is far ahead. Bump this to upgrade.
 ARG MOLD_VERSION=v2.41.0
+# Tools with no usable Ubuntu package (trivy, duckdb, mikefarah's yq) or whose
+# archive version lags badly (just 1.21 vs upstream 1.57). Bump to upgrade.
+ARG JUST_VERSION=1.57.0
+ARG YQ_VERSION=v4.53.3
+ARG TRIVY_VERSION=v0.72.0
+ARG DUCKDB_VERSION=v1.5.5
+# Cargo subcommands, installed as prebuilt binaries via cargo-binstall.
+ARG BINSTALL_VERSION=v1.21.1
+ARG NEXTEST_VERSION=0.9.140
+ARG CARGO_DENY_VERSION=0.20.2
+ARG CARGO_EXPAND_VERSION=1.0.124
+ARG CARGO_MACHETE_VERSION=0.9.2
 
 # Base toolchain + sshd.
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
@@ -24,6 +36,29 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-ins
         vim \
         wget \
     && rm -rf /var/lib/apt/lists/*
+
+# Everyday CLI tooling that the Ubuntu archive carries at a usable version.
+# `time` is the standalone /usr/bin/time (bash's builtin has no -v / -f).
+# fd-find and bat install under alternate names (fdfind, batcat) to avoid
+# clashing with unrelated packages, so both get a symlink under their real name;
+# /usr/local/bin is already on the PATH for interactive and SSH sessions alike.
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+        bat \
+        fd-find \
+        git-delta \
+        hyperfine \
+        jq \
+        lsof \
+        netcat-openbsd \
+        shellcheck \
+        shfmt \
+        sqlite3 \
+        time \
+        tree \
+        zstd \
+    && rm -rf /var/lib/apt/lists/* \
+    && ln -s /usr/bin/fdfind /usr/local/bin/fd \
+    && ln -s /usr/bin/batcat /usr/local/bin/bat
 
 # Node LTS from NodeSource, plus the Next.js CLI for scaffolding. Corepack ships
 # with Node and manages pnpm/yarn per-project via the packageManager field.
@@ -62,6 +97,54 @@ RUN arch="$(dpkg --print-architecture)" \
     && curl -fsSL "https://github.com/rui314/mold/releases/download/${MOLD_VERSION}/mold-${ver}-${target}.tar.gz" \
        | tar -xz --strip-components=1 -C /usr/local \
     && mold --version
+
+# just / yq / trivy / duckdb — upstream prebuilt releases into /usr/local/bin.
+# Each publishes a different asset naming scheme, hence the per-tool triple.
+# Note yq here is mikefarah's Go implementation (`yq '.a.b'`, `yq eval`), not the
+# jq-wrapper Python package the Ubuntu archive ships under the same name.
+RUN arch="$(dpkg --print-architecture)" \
+    && case "${arch}" in \
+         arm64) rust_target=aarch64-unknown-linux-musl; go_arch=arm64; trivy_arch=ARM64; duck_arch=arm64 ;; \
+         amd64) rust_target=x86_64-unknown-linux-musl; go_arch=amd64; trivy_arch=64bit; duck_arch=amd64 ;; \
+         *) echo "unsupported architecture: ${arch}" >&2; exit 1 ;; \
+       esac \
+    && curl -fsSL "https://github.com/casey/just/releases/download/${JUST_VERSION}/just-${JUST_VERSION}-${rust_target}.tar.gz" \
+       | tar -xz -C /usr/local/bin just \
+    && curl -fsSL "https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_${go_arch}" \
+         -o /usr/local/bin/yq \
+    && chmod 0755 /usr/local/bin/yq \
+    && curl -fsSL "https://github.com/aquasecurity/trivy/releases/download/${TRIVY_VERSION}/trivy_${TRIVY_VERSION#v}_Linux-${trivy_arch}.tar.gz" \
+       | tar -xz -C /usr/local/bin trivy \
+    && curl -fsSL "https://github.com/duckdb/duckdb/releases/download/${DUCKDB_VERSION}/duckdb_cli-linux-${duck_arch}.gz" \
+       | gunzip > /usr/local/bin/duckdb \
+    && chmod 0755 /usr/local/bin/duckdb \
+    && just --version && yq --version && trivy --version && duckdb --version
+
+# Cargo subcommands as prebuilt binaries. cargo-binstall resolves each crate's
+# own release assets — and falls back to the cargo-quickinstall builds for
+# cargo-expand, which publishes no binaries of its own — so nothing here is
+# compiled from source. `compile` is disabled explicitly: root has no rustc on
+# PATH (rustup is installed under the dev user below), so a silent fallback to a
+# source build would fail late and confusingly rather than at the download.
+# Note: `cargo expand` itself needs a nightly rustc (-Zunpretty=expanded). The
+# rustup install below is stable-only to keep the image small; add nightly with
+# `rustup toolchain install nightly --profile minimal` (~500MB) if you use it.
+RUN arch="$(dpkg --print-architecture)" \
+    && case "${arch}" in \
+         arm64) target=aarch64-unknown-linux-gnu ;; \
+         amd64) target=x86_64-unknown-linux-gnu ;; \
+         *) echo "unsupported architecture: ${arch}" >&2; exit 1 ;; \
+       esac \
+    && curl -fsSL "https://github.com/cargo-bins/cargo-binstall/releases/download/${BINSTALL_VERSION}/cargo-binstall-${target}.tgz" \
+       | tar -xz -C /usr/local/bin cargo-binstall \
+    && cargo-binstall --no-confirm --no-track --disable-strategies compile \
+         --install-path /usr/local/bin \
+         "cargo-nextest@${NEXTEST_VERSION}" \
+         "cargo-deny@${CARGO_DENY_VERSION}" \
+         "cargo-expand@${CARGO_EXPAND_VERSION}" \
+         "cargo-machete@${CARGO_MACHETE_VERSION}" \
+    && cargo-nextest --version && cargo-deny --version \
+    && cargo-expand --version && cargo-machete --version
 
 # GitHub CLI from GitHub's own apt repo (the Ubuntu archive version lags).
 RUN mkdir -p -m 755 /etc/apt/keyrings \
