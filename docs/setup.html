@@ -1,0 +1,624 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Devbox — work setup</title>
+<style>
+  :root{
+    --bg:#fbfaf8; --panel:#ffffff; --ink:#1d1c1a; --muted:#6b6864;
+    --line:#e5e1db; --accent:#c05b2e; --accent2:#2f6f6a; --accent3:#4a5a86;
+    --warn:#a1651a; --code-bg:#f4f2ee; --shadow:0 1px 2px rgba(0,0,0,.05),0 8px 24px rgba(0,0,0,.04);
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#141413; --panel:#1c1c1a; --ink:#eceae6; --muted:#9b9793;
+      --line:#2e2d2a; --accent:#e08050; --accent2:#63b0a8; --accent3:#8fa4d8;
+      --warn:#d9a94f; --code-bg:#232320; --shadow:0 1px 2px rgba(0,0,0,.4);
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#141413; --panel:#1c1c1a; --ink:#eceae6; --muted:#9b9793;
+    --line:#2e2d2a; --accent:#e08050; --accent2:#63b0a8; --accent3:#8fa4d8;
+    --warn:#d9a94f; --code-bg:#232320; --shadow:0 1px 2px rgba(0,0,0,.4);
+  }
+  :root[data-theme="light"]{
+    --bg:#fbfaf8; --panel:#ffffff; --ink:#1d1c1a; --muted:#6b6864;
+    --line:#e5e1db; --accent:#c05b2e; --accent2:#2f6f6a; --accent3:#4a5a86;
+    --warn:#a1651a; --code-bg:#f4f2ee; --shadow:0 1px 2px rgba(0,0,0,.05),0 8px 24px rgba(0,0,0,.04);
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font:16px/1.6 ui-sans-serif,-apple-system,"Segoe UI",Inter,system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1080px; margin:0 auto; padding:56px 24px 96px}
+  header.head{border-bottom:1px solid var(--line); padding-bottom:28px; margin-bottom:44px}
+  h1{font-size:34px; line-height:1.15; margin:0 0 8px; letter-spacing:-.02em}
+  .sub{color:var(--muted); margin:0; font-size:16px}
+  .kicker{font:600 12px/1 ui-monospace,SFMono-Regular,Menlo,monospace; letter-spacing:.14em;
+    text-transform:uppercase; color:var(--accent); margin:0 0 14px}
+  h2{font-size:22px; letter-spacing:-.01em; margin:0 0 6px}
+  h3{font-size:15px; margin:0 0 8px; letter-spacing:-.005em}
+  section{margin:0 0 56px}
+  .lede{color:var(--muted); margin:0 0 22px; max-width:70ch}
+  code,kbd,pre{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+  code{background:var(--code-bg); padding:.12em .38em; border-radius:4px; font-size:.88em}
+  pre{background:var(--code-bg); border:1px solid var(--line); border-radius:10px;
+    padding:14px 16px; overflow-x:auto; font-size:13px; line-height:1.55; margin:0}
+  pre code{background:none; padding:0; font-size:13px}
+  .panel{background:var(--panel); border:1px solid var(--line); border-radius:14px;
+    padding:22px; box-shadow:var(--shadow)}
+  .grid{display:grid; gap:16px}
+  .g2{grid-template-columns:repeat(auto-fit,minmax(300px,1fr))}
+  .g3{grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
+  .scroll{overflow-x:auto; -webkit-overflow-scrolling:touch}
+  table{border-collapse:collapse; width:100%; font-size:14px}
+  .scroll table{min-width:560px}
+  th{text-align:left; font-weight:600; font-size:12px; letter-spacing:.06em;
+    text-transform:uppercase; color:var(--muted); padding:0 14px 8px 0; border-bottom:1px solid var(--line)}
+  td{padding:10px 14px 10px 0; border-bottom:1px solid var(--line); vertical-align:top}
+  tr:last-child td{border-bottom:none}
+  .scroll td code{white-space:nowrap}
+  .panel table td:first-child{max-width:44%}
+  ul{margin:0; padding-left:18px} li{margin:5px 0}
+  .muted{color:var(--muted)}
+  .tag{display:inline-block; font:600 11px/1.6 ui-monospace,monospace; letter-spacing:.06em;
+    text-transform:uppercase; padding:2px 8px; border-radius:999px; border:1px solid var(--line);
+    color:var(--muted); background:var(--code-bg)}
+  .tag.a{color:var(--accent); border-color:color-mix(in srgb,var(--accent) 35%,transparent)}
+  .tag.b{color:var(--accent2); border-color:color-mix(in srgb,var(--accent2) 35%,transparent)}
+  .tag.c{color:var(--accent3); border-color:color-mix(in srgb,var(--accent3) 35%,transparent)}
+
+  /* flow */
+  .flow{display:flex; gap:10px; align-items:stretch; flex-wrap:wrap}
+  .node{flex:1 1 180px; border:1px solid var(--line); border-radius:12px; padding:13px 14px; background:var(--panel)}
+  .node h4{margin:0 0 5px; font-size:13px; font-family:ui-monospace,monospace; letter-spacing:.02em}
+  .node p{margin:0; font-size:13px; color:var(--muted); line-height:1.5}
+  .arr{display:flex; align-items:center; color:var(--muted); font-size:18px; padding:0 2px}
+  @media (max-width:640px){ .arr{transform:rotate(90deg); justify-content:center; width:100%; padding:2px 0} }
+
+  /* ── viz roles (validated palette; see dataviz/references/palette.md) ── */
+  .viz{
+    color-scheme:light;
+    --surface-1:#ffffff; --grid:var(--line);
+    --series-1:#2a78d6;  /* shared cache & persistent state */
+    --series-2:#eb6834;  /* per-worktree compile output */
+    --dgm-ink:var(--ink); --dgm-muted:var(--muted); --dgm-line:var(--line);
+    --dgm-fill:var(--code-bg); --dgm-panel:var(--panel);
+  }
+  @media (prefers-color-scheme: dark){
+    :root:where(:not([data-theme="light"])) .viz{
+      color-scheme:dark; --surface-1:#1c1c1a; --series-1:#3987e5; --series-2:#d95926;
+    }
+  }
+  :root[data-theme="dark"] .viz{
+    color-scheme:dark; --surface-1:#1c1c1a; --series-1:#3987e5; --series-2:#d95926;
+  }
+
+  /* svg diagrams */
+  .figure{border:1px solid var(--line); border-radius:14px; background:var(--panel);
+    padding:18px; box-shadow:var(--shadow)}
+  .figure svg{display:block; width:100%; height:auto; min-width:660px}
+  figcaption{color:var(--muted); font-size:13px; margin-top:14px; line-height:1.55}
+  .s-box{fill:var(--dgm-fill); stroke:var(--dgm-line)}
+  .s-panel{fill:var(--dgm-panel); stroke:var(--dgm-line)}
+  .s-t{fill:var(--dgm-ink); font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12px}
+  .s-t.sm{font-size:10.5px; fill:var(--dgm-muted)}
+  .s-t.hd{font-size:11px; letter-spacing:.1em; font-weight:600}
+  .s-l{stroke:var(--dgm-muted); fill:none; stroke-width:1.4}
+  .s-l.thick{stroke-width:2.4; stroke:var(--accent)}
+  .s-l.dash{stroke-dasharray:4 4}
+
+  .callout{border-left:3px solid var(--accent); background:color-mix(in srgb,var(--accent) 6%,transparent);
+    border-radius:0 10px 10px 0; padding:12px 16px; font-size:14px; margin-top:16px}
+  .callout.b{border-left-color:var(--accent2); background:color-mix(in srgb,var(--accent2) 7%,transparent)}
+  .callout strong{font-weight:600}
+  footer{border-top:1px solid var(--line); padding-top:20px; color:var(--muted); font-size:13px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="head">
+  <p class="kicker">Working environment</p>
+  <h1>Devbox: a containerized dev machine, driven remotely</h1>
+  <p class="sub">A Docker container on the Mac that hosts every repo, every worktree, and every agent
+  session — reached over SSH from Orca, VS Code, and the terminal. It is also the sandbox that makes
+  running agents with approvals skipped a bounded risk. Compiles are shared and cached across
+  worktrees. Rebuilding the image loses nothing.</p>
+</header>
+
+<!-- ── SHAPE ─────────────────────────────────────────────── -->
+<section>
+  <h2>The shape of it</h2>
+  <p class="lede">Nothing of value lives in the image. The image is a toolchain; state lives on named
+  volumes; work lives in <code>~/workspace</code>. Clients attach from outside over one SSH port.</p>
+
+  <figure class="figure viz scroll" style="margin:0">
+    <svg viewBox="0 0 1000 420" role="img"
+         aria-label="Topology: three macOS clients connect over SSH on port 2223 to the devbox container, whose state lives on nine named Docker volumes.">
+      <defs>
+        <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="var(--dgm-muted)"/>
+        </marker>
+        <marker id="ahx" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="var(--accent)"/>
+        </marker>
+      </defs>
+
+      <!-- clients -->
+      <text class="s-t hd" x="8" y="20" fill="var(--dgm-muted)">CLIENTS · macOS HOST</text>
+      <rect class="s-box" x="8" y="36" width="178" height="44" rx="9"/>
+      <text class="s-t" x="20" y="56">Orca — onorca.dev</text>
+      <text class="s-t sm" x="20" y="71">relay pushed in over SSH</text>
+      <rect class="s-box" x="8" y="90" width="178" height="44" rx="9"/>
+      <text class="s-t" x="20" y="110">VS Code Remote-SSH</text>
+      <text class="s-t sm" x="20" y="125">server pushed in over SSH</text>
+      <rect class="s-box" x="8" y="144" width="178" height="44" rx="9"/>
+      <text class="s-t" x="20" y="164">ssh devbox</text>
+      <text class="s-t sm" x="20" y="179">plain shell · agent runs</text>
+      <text class="s-t sm" x="8" y="208">~/.ssh/config · localhost:2223</text>
+      <text class="s-t sm" x="8" y="223">user dev · id_ed25519 · ForwardAgent</text>
+
+      <!-- pipe -->
+      <path class="s-l" d="M186,58 H228 V112"/>
+      <path class="s-l" d="M186,112 H228"/>
+      <path class="s-l" d="M186,166 H228 V112"/>
+      <path class="s-l thick" d="M228,112 H308" marker-end="url(#ahx)"/>
+      <text class="s-t sm" x="230" y="100">2223 → 22</text>
+      <text class="s-t sm" x="230" y="132">key-only</text>
+
+      <!-- container -->
+      <rect x="316" y="8" width="396" height="396" rx="14"
+            fill="var(--dgm-panel)" stroke="var(--accent)" stroke-opacity=".55"/>
+      <text class="s-t hd" x="332" y="30" fill="var(--accent)">CONTAINER · devbox</text>
+      <text class="s-t sm" x="332" y="46">ubuntu 24.04 · init: true · restart: unless-stopped</text>
+
+      <rect class="s-box" x="332" y="58" width="364" height="46" rx="9"/>
+      <text class="s-t" x="344" y="78">sshd :22 — key-only, no root login</text>
+      <text class="s-t sm" x="344" y="94">PermitUserEnvironment yes · host keys from volume</text>
+
+      <rect class="s-box" x="332" y="116" width="176" height="34" rx="8"/>
+      <text class="s-t" x="344" y="137">rustup · cargo 1.97</text>
+      <rect class="s-box" x="520" y="116" width="176" height="34" rx="8"/>
+      <text class="s-t" x="532" y="137">sccache 0.16</text>
+      <rect class="s-box" x="332" y="158" width="176" height="34" rx="8"/>
+      <text class="s-t" x="344" y="179">mold 2.41</text>
+      <rect class="s-box" x="520" y="158" width="176" height="34" rx="8"/>
+      <text class="s-t" x="532" y="179">node 22 · corepack</text>
+      <rect class="s-box" x="332" y="200" width="176" height="34" rx="8"/>
+      <text class="s-t" x="344" y="221">gh 2.96 · ripgrep</text>
+      <rect class="s-box" x="520" y="200" width="176" height="34" rx="8"/>
+      <text class="s-t" x="532" y="221">Claude Code</text>
+      <rect class="s-box" x="332" y="242" width="176" height="34" rx="8"/>
+      <text class="s-t" x="344" y="263">Orca relay (node)</text>
+      <rect class="s-box" x="520" y="242" width="176" height="34" rx="8"/>
+      <text class="s-t" x="532" y="263">next dev :3000</text>
+
+      <rect x="332" y="288" width="364" height="52" rx="9"
+            fill="var(--dgm-fill)" stroke="var(--series-2)" stroke-opacity=".7"/>
+      <text class="s-t" x="344" y="310">~/workspace — clones + sibling worktrees</text>
+      <text class="s-t sm" x="344" y="327">every tree keeps its own ./target</text>
+
+      <text class="s-t sm" x="332" y="360">boot: entrypoint.sh (root) → user-setup.sh (dev) → sshd</text>
+      <text class="s-t sm" x="332" y="378">sudo needs SUDO_PASSWORD; unset ⇒ disabled entirely</text>
+
+      <!-- volumes -->
+      <path class="s-l" d="M712,180 H734" marker-end="url(#ah)"/>
+      <text class="s-t hd" x="742" y="20" fill="var(--dgm-muted)">NAMED VOLUMES</text>
+      <g>
+        <rect class="s-box" x="742" y="36"  width="250" height="30" rx="7"/>
+        <text class="s-t" x="754" y="55">workspace</text>
+        <rect class="s-box" x="742" y="70"  width="250" height="30" rx="7"/>
+        <text class="s-t" x="754" y="89">sccache</text>
+        <rect class="s-box" x="742" y="104" width="250" height="30" rx="7"/>
+        <text class="s-t" x="754" y="123">cargo-registry</text>
+        <rect class="s-box" x="742" y="138" width="250" height="30" rx="7"/>
+        <text class="s-t" x="754" y="157">orca-remote</text>
+        <rect class="s-box" x="742" y="172" width="250" height="30" rx="7"/>
+        <text class="s-t" x="754" y="191">claude-config</text>
+        <rect class="s-box" x="742" y="206" width="250" height="30" rx="7"/>
+        <text class="s-t" x="754" y="225">orca-relay</text>
+        <rect class="s-box" x="742" y="240" width="250" height="30" rx="7"/>
+        <text class="s-t" x="754" y="259">orca</text>
+        <rect class="s-box" x="742" y="274" width="250" height="30" rx="7"/>
+        <text class="s-t" x="754" y="293">vscode-server</text>
+        <rect x="742" y="308" width="250" height="30" rx="7"
+              fill="var(--dgm-fill)" stroke="var(--accent)" stroke-opacity=".7"/>
+        <text class="s-t" x="754" y="327">ssh-host-keys</text>
+      </g>
+      <text class="s-t sm" x="742" y="360">survive docker compose up -d --build</text>
+    </svg>
+    <figcaption>The container is disposable; the right-hand column is not. Port 3000 is published
+    straight to the host for the Next dev server. Port 2222 is deliberately skipped — VS Code's
+    devcontainer forwarder owns it.</figcaption>
+  </figure>
+
+  <div class="callout">
+    <strong>Why host keys are on a volume.</strong> Image-baked keys change on every rebuild, so the
+    box looks like a different machine each time and strict clients (Orca, anything with a
+    <code>known_hosts</code>) refuse to connect. They're generated once by the entrypoint into
+    <code>/etc/ssh/host-keys</code> and kept.
+  </div>
+</section>
+
+<!-- ── WHY A CONTAINER ──────────────────────────────────── -->
+<section>
+  <h2>Why a container: agents run with permissions skipped</h2>
+  <p class="lede">Inside the box, Claude Code runs as
+  <code>claude --dangerously-skip-permissions</code> — no per-tool approval prompt, which is what makes
+  unattended and parallel agent runs practical at all. That is only a reasonable trade because the
+  blast radius is bounded by the container rather than by my attention at each prompt. The list below
+  is the actual boundary, in both directions.</p>
+
+  <div class="grid g2">
+    <div class="panel">
+      <h3><span class="tag b">Contained</span> what a skipped-approval command cannot reach</h3>
+      <ul style="font-size:14px">
+        <li><strong>The host filesystem.</strong> Exactly one path is mounted from the Mac —
+        <code>~/.ssh/id_ed25519.pub</code>, read-only. No source outside the box, no
+        <code>~/.aws</code>, no keychain, no browser profiles, no dotfiles.</li>
+        <li><strong>My SSH identity.</strong> Only the <em>public</em> key crosses the boundary; the
+        private key never enters the container.</li>
+        <li><strong>Root.</strong> The <code>dev</code> user's sudo needs <code>SUDO_PASSWORD</code>,
+        which is deliberately never written into any session file. With it unset the account is locked
+        and sudo simply refuses — root work has to come from outside via
+        <code>docker exec -u root</code>.</li>
+        <li><strong>The Docker daemon.</strong> No <code>/var/run/docker.sock</code> mount, no
+        <code>privileged</code>, no added capabilities — so there is no path back out to the host.</li>
+        <li><strong>The host's processes, ports, and other containers</strong>, beyond what the network
+        exposes to anyone.</li>
+      </ul>
+    </div>
+    <div class="panel">
+      <h3><span class="tag a">Exposed</span> the real blast radius</h3>
+      <ul style="font-size:14px">
+        <li><strong>Everything in <code>~/workspace</code></strong> — every clone and worktree,
+        including uncommitted work. The volume outlives the container, so
+        <code>docker compose down</code> undoes nothing: an <code>rm -rf</code> in here is as permanent
+        as it would be on the host.</li>
+        <li><strong><code>GH_TOKEN</code></strong> — whatever push access that token carries. It lives
+        in <code>~/.ssh/environment</code> and <code>~/.config/devbox-env.sh</code>, readable by the
+        <code>dev</code> user, i.e. by the agent.</li>
+        <li><strong><code>CLAUDE_CODE_OAUTH_TOKEN</code></strong> — the subscription itself.</li>
+        <li><strong>The network.</strong> Egress is unrestricted: the whole internet, plus whatever the
+        LAN and the host expose to the container.</li>
+        <li><strong>Published ports.</strong> 2223 and 3000 bind on all interfaces, so the dev server
+        is visible to the network, not just to localhost.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="callout">
+    <strong>The hole in "the private key never enters the container": <code>ForwardAgent yes</code>.</strong>
+    For the life of an <code>ssh devbox</code> session, the host's SSH agent is reachable from inside
+    the box, and any process running as <code>dev</code> — including an agent with approvals skipped —
+    can sign with my key. Git doesn't need it (that's what the <code>GH_TOKEN</code> credential helper
+    is for), so dropping <code>ForwardAgent</code> is worth doing if unattended runs happen while I'm
+    logged in.
+  </div>
+
+  <div class="callout b">
+    <strong>The container protects the host, not the work.</strong> Nothing here recovers uncommitted
+    changes from a worktree an agent trashed. That is what the one-worktree-per-session layout and
+    frequent commits are for, not the container boundary.
+  </div>
+</section>
+
+<!-- ── BOOT ─────────────────────────────────────────────── -->
+<section>
+  <h2>What happens on <code>docker compose up -d</code></h2>
+  <p class="lede">Two scripts. Root does only what needs root; everything under <code>/home/dev</code>
+  is done by the dev user itself, so no ownership ever has to be repaired.</p>
+
+  <div class="flow">
+    <div class="node">
+      <h4>entrypoint.sh <span class="tag a">root</span></h4>
+      <p>Writes GitHub's host key to <code>/etc/ssh/ssh_known_hosts</code>. Generates the SSH host keys
+      into the volume if absent. Sets the sudo password from <code>SUDO_PASSWORD</code>, or leaves the
+      account locked.</p>
+    </div>
+    <div class="arr">→</div>
+    <div class="node">
+      <h4>/etc/profile.d/devbox-env.sh</h4>
+      <p>Every <code>CARGO_*</code>, <code>SCCACHE_*</code>, <code>RUSTC_WRAPPER</code> exported for
+      interactive login shells. Root-owned and world-readable — so no secret goes here.</p>
+    </div>
+    <div class="arr">→</div>
+    <div class="node">
+      <h4>user-setup.sh <span class="tag b">dev</span></h4>
+      <p>Installs the host pubkey as <code>authorized_keys</code>. Writes
+      <code>~/.ssh/environment</code> (non-interactive sessions) and <code>~/.config/devbox-env.sh</code>
+      mode 600 for the tokens. Wires <code>gh</code> as git's credential helper.</p>
+    </div>
+    <div class="arr">→</div>
+    <div class="node">
+      <h4>sshd -D -e</h4>
+      <p>Foreground, logging to the container. <code>restart: unless-stopped</code> keeps the box up
+      across reboots.</p>
+    </div>
+  </div>
+
+  <div class="grid g2" style="margin-top:20px">
+    <div class="panel">
+      <h3>Three ways PATH/env reach a session</h3>
+      <table>
+        <tr><td><strong>Interactive login</strong><br><span class="muted">ssh devbox</span></td>
+            <td><code>/etc/profile.d/*.sh</code> + <code>~/.bashrc</code> → <code>~/.config/devbox-env.sh</code></td></tr>
+        <tr><td><strong>Non-interactive</strong><br><span class="muted">ssh devbox cargo build</span></td>
+            <td><code>~/.ssh/environment</code> (needs <code>PermitUserEnvironment yes</code>) for the vars;
+            PATH from <code>/etc/environment</code>, because pam_env runs <em>after</em> and would override it</td></tr>
+        <tr><td><strong>Agents / Orca</strong></td>
+            <td>Same as non-interactive — which is exactly why the PATH lives in
+            <code>/etc/environment</code> and not in a shell rc</td></tr>
+      </table>
+    </div>
+    <div class="panel">
+      <h3>Secrets &amp; auth</h3>
+      <table>
+        <tr><td><code>GH_TOKEN</code></td><td>gh authenticates with no <code>gh auth login</code>;
+          git SSH remotes are rewritten to HTTPS so unattended agents don't need a forwarded agent</td></tr>
+        <tr><td><code>CLAUDE_CODE_OAUTH_TOKEN</code></td><td>Subscription token from
+          <code>claude setup-token</code>. Deliberately <em>not</em> <code>ANTHROPIC_API_KEY</code> —
+          that would bill API credits instead of the plan</td></tr>
+        <tr><td><code>SUDO_PASSWORD</code></td><td>Unset ⇒ sudo disabled entirely; root work goes through
+          <code>docker exec -u root devbox</code>. A runaway process can't silently escalate</td></tr>
+        <tr><td><code>GITHUB_KNOWN_HOSTS</code></td><td>Public, so it's defaulted in the committed
+          compose file — a fresh clone works without a <code>.env</code></td></tr>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ── ORCA ─────────────────────────────────────────────── -->
+<section>
+  <h2>Orca remote</h2>
+  <p class="lede">Orca connects over the same <code>devbox</code> SSH host and pushes a remote
+  component in, the same shape as VS Code's server. Three volumes keep it from re-uploading and from
+  losing session state on every rebuild.</p>
+
+  <div class="grid g3">
+    <div class="panel">
+      <h3><code>~/.orca-remote</code></h3>
+      <p class="muted" style="margin:0; font-size:14px">The pushed relay binary, one directory per
+      version (<code>relay-0.1.0+&lt;hash&gt;</code>). A detached
+      <code>node relay.js</code> holds a unix socket and fans out to per-session shells.</p>
+    </div>
+    <div class="panel">
+      <h3><code>~/.orca-relay</code></h3>
+      <p class="muted" style="margin:0; font-size:14px">Runtime scaffolding: <code>bin/</code>,
+      <code>opencode-overlays/</code>, and <code>shell-ready/bash/rcfile</code> — every Orca terminal is
+      a <code>bash --rcfile</code> off that, which is how the box's env reaches Orca sessions.</p>
+    </div>
+    <div class="panel">
+      <h3><code>~/.orca</code></h3>
+      <p class="muted" style="margin:0; font-size:14px"><code>sessions/</code> and
+      <code>agent-hooks/</code> — the durable per-session state. Mirrored on the host at
+      <code>~/.orca</code> and <code>~/orca/workspaces/&lt;repo&gt;/&lt;name&gt;</code>.</p>
+    </div>
+  </div>
+
+  <div class="callout b" style="margin-top:18px">
+    <strong>Worktree naming.</strong> Orca names each workspace after a sea creature, and the box's
+    worktrees carry those names straight through: <code>oxygen-internal-axolotl</code>,
+    <code>-butterfish</code>, <code>-cowfish</code>. The suffix tells you which Orca session owns the
+    tree.
+  </div>
+</section>
+
+<!-- ── WORKTREES ────────────────────────────────────────── -->
+<section>
+  <h2>Worktrees</h2>
+  <p class="lede">One clone per repo, then a flat fan of sibling worktrees under
+  <code>~/workspace</code> — never nested inside the parent checkout. Each is a branch someone (me or
+  an agent) is working on right now, and each carries its own <code>./target</code>.</p>
+
+  <div class="panel scroll">
+    <pre><code>/home/dev/workspace/
+├── oxygen-internal                 [main]                              ← primary clone
+│   ├── oxygen-internal-axolotl     orca session
+│   ├── oxygen-internal-butterfish  orca session
+│   ├── oxygen-internal-cowfish     orca session
+│   └── oxygen-internal.worktrees/
+└── airlayer                        [feat/driver-contribution-sign]     ← primary clone</code></pre>
+  </div>
+  <p class="muted" style="font-size:13.5px; margin-top:12px">Indentation shows which clone a worktree
+  belongs to; on disk they're all siblings in <code>~/workspace</code>. The exception to the flat
+  layout is <code>&lt;tree&gt;/.claude/worktrees/&lt;name&gt;</code> — Claude Code makes those for
+  itself, nested inside whichever tree it was working in.</p>
+
+  <div class="callout">
+    <strong>No shared <code>CARGO_TARGET_DIR</code>.</strong> A single shared target dir made every
+    cargo invocation in the box serialize on cargo's per-target-dir build lock —
+    <em>"Blocking waiting for file lock on build directory"</em> — which reads as a hang under
+    agent/non-interactive runs. Each worktree gets its own <code>./target</code>; sccache is what
+    shares work between them, and it does so safely.
+  </div>
+</section>
+
+<!-- ── CARGO ────────────────────────────────────────────── -->
+<section>
+  <h2>Cargo: the shim, sccache, and mold</h2>
+  <p class="lede">sccache and <code>CARGO_INCREMENTAL</code> are mutually exclusive — sccache refuses
+  to run as a rustc wrapper when incremental is on. But their value is temporally disjoint, so the
+  shim at <code>~/.local/bin/cargo</code> picks one per worktree per phase.</p>
+
+  <div class="grid g2">
+    <div class="panel">
+      <h3><span class="tag a">Cold</span> first build in a fresh worktree</h3>
+      <p class="muted" style="font-size:14px; margin:0 0 10px">sccache pays off exactly once — it warms
+      the whole dependency graph out of the global cache. Incremental would buy nothing here.</p>
+      <pre><code>env RUSTC_WRAPPER=sccache \
+    CARGO_INCREMENTAL=0 \
+    ~/.cargo/bin/cargo "$@"
+
+# on success:
+touch ./target/.sccache-warmed</code></pre>
+    </div>
+    <div class="panel">
+      <h3><span class="tag b">Warm</span> every build after</h3>
+      <p class="muted" style="font-size:14px; margin:0 0 10px">Deps now live in <code>./target</code>
+      and cargo's fingerprint never re-invokes rustc for them, so sccache is dead weight. Incremental
+      takes over for the edit-rebuild loop.</p>
+      <pre><code>env -u RUSTC_WRAPPER \
+    CARGO_INCREMENTAL=1 \
+    ~/.cargo/bin/cargo "$@"</code></pre>
+    </div>
+  </div>
+
+  <figure class="figure viz scroll" style="margin:16px 0 0">
+    <svg viewBox="0 0 1000 320" role="img"
+         aria-label="Decision flow: the cargo shim parses the subcommand, passes non-compiling ones through, and otherwise checks for a sentinel file in the target directory to choose between the sccache cold path and the incremental warm path.">
+      <defs>
+        <marker id="ah2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="var(--dgm-muted)"/>
+        </marker>
+      </defs>
+
+      <rect class="s-box" x="8" y="118" width="132" height="58" rx="9"/>
+      <text class="s-t" x="20" y="142">cargo build</text>
+      <text class="s-t sm" x="20" y="160">~/.local/bin first</text>
+      <path class="s-l" d="M140,147 H170" marker-end="url(#ah2)"/>
+
+      <rect class="s-panel" x="176" y="106" width="170" height="82" rx="9"/>
+      <text class="s-t" x="188" y="128">shim: parse subcmd</text>
+      <text class="s-t sm" x="188" y="146">skips -v, +toolchain,</text>
+      <text class="s-t sm" x="188" y="161">and -Z/-C/--config values</text>
+      <text class="s-t sm" x="188" y="178">calls real cargo by path</text>
+
+      <path class="s-l" d="M261,188 V232" marker-end="url(#ah2)"/>
+      <rect class="s-box" x="176" y="232" width="170" height="56" rx="9"/>
+      <text class="s-t sm" x="188" y="253">fmt · add · tree · metadata</text>
+      <text class="s-t sm" x="188" y="271">exec real cargo, untouched</text>
+
+      <path class="s-l" d="M346,147 H360" marker-end="url(#ah2)"/>
+      <path d="M466,102 L576,147 L466,192 L356,147 Z" fill="var(--dgm-fill)" stroke="var(--dgm-line)"/>
+      <text class="s-t sm" x="466" y="143" text-anchor="middle">./target/</text>
+      <text class="s-t sm" x="466" y="158" text-anchor="middle">.sccache-warmed ?</text>
+
+      <path class="s-l" d="M527,125 L590,92" marker-end="url(#ah2)"/>
+      <text class="s-t sm" x="536" y="104">absent</text>
+      <path class="s-l" d="M527,169 L590,208" marker-end="url(#ah2)"/>
+      <text class="s-t sm" x="536" y="200">present</text>
+
+      <rect x="600" y="40" width="392" height="88" rx="10"
+            fill="var(--dgm-fill)" stroke="var(--accent)" stroke-opacity=".75"/>
+      <text class="s-t hd" x="616" y="62" fill="var(--accent)">COLD — first build in this worktree</text>
+      <text class="s-t" x="616" y="84">RUSTC_WRAPPER=sccache · CARGO_INCREMENTAL=0</text>
+      <text class="s-t sm" x="616" y="104">warms the dependency graph from the global sccache cache;</text>
+      <text class="s-t sm" x="616" y="119">incremental is impossible here — sccache refuses it</text>
+
+      <rect x="600" y="196" width="392" height="88" rx="10"
+            fill="var(--dgm-fill)" stroke="var(--accent2)" stroke-opacity=".75"/>
+      <text class="s-t hd" x="616" y="218" fill="var(--accent2)">WARM — every build after</text>
+      <text class="s-t" x="616" y="240">env -u RUSTC_WRAPPER · CARGO_INCREMENTAL=1</text>
+      <text class="s-t sm" x="616" y="260">deps live in ./target, never re-invoked — sccache is now</text>
+      <text class="s-t sm" x="616" y="275">dead weight; edits rebuild changed codegen units only</text>
+
+      <path class="s-l dash" d="M760,128 V190" marker-end="url(#ah2)"/>
+      <text class="s-t sm" x="772" y="144">on success: touch the sentinel</text>
+      <text class="s-t sm" x="772" y="159">one-way per worktree;</text>
+      <text class="s-t sm" x="772" y="174">cargo clean resets it</text>
+    </svg>
+    <figcaption>A failed cold build leaves no sentinel, so the next attempt retries cold. The flip is
+    one-directional by design: toggling incremental 0↔1 would thrash local-crate fingerprints on every
+    build.</figcaption>
+  </figure>
+
+  <div class="grid g2" style="margin-top:20px">
+    <div class="panel">
+      <h3>Knowing the sharp edges</h3>
+      <ul style="font-size:14px">
+        <li><strong>Warm with <code>cargo build</code>, not <code>cargo check</code>.</strong> A cold
+        <code>check</code> only produces dep <code>.rmeta</code>; the next <code>build</code> — now with
+        sccache off — would have to codegen every dep from scratch. <code>build</code> seeds both.</li>
+        <li><strong>One-time recompile at the flip.</strong> Turning incremental on changes local
+        crates' rustc flags and invalidates their fingerprint. Deps are unaffected — they're never
+        incremental.</li>
+        <li><strong>Concurrency.</strong> Two builds racing in the same worktree before the sentinel is
+        written invalidate each other's local fingerprints once. Wasteful, harmless.</li>
+      </ul>
+    </div>
+    <div class="panel">
+      <h3>Everything else in the build environment</h3>
+      <table>
+        <tr><td><code>-C link-arg=-fuse-ld=mold</code></td><td>mold as the linker for
+          aarch64-unknown-linux-gnu — installed from upstream releases, since 24.04 ships mold 2.30 from
+          Mar 2024</td></tr>
+        <tr><td><code>CARGO_PROFILE_DEV_DEBUG=0</code></td><td>No debuginfo in dev builds; the single
+          biggest cut to link time and target-dir size</td></tr>
+        <tr><td><code>CARGO_PROFILE_DEV_SPLIT_DEBUGINFO=off</code></td><td>Nothing to split once debug
+          is off</td></tr>
+        <tr><td><code>SCCACHE_CACHE_SIZE=20G</code></td><td>Global, shared by every worktree and every
+          clean build</td></tr>
+        <tr><td>cargo-registry volume</td><td>Downloaded crate sources, kept across rebuilds</td></tr>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ── STATE ────────────────────────────────────────────── -->
+<section>
+  <h2>Volumes: what survives a rebuild, and why it has to</h2>
+  <div class="panel scroll">
+    <table>
+      <thead><tr><th>Volume</th><th>Mount</th><th>What breaks without it</th></tr></thead>
+      <tbody>
+        <tr><td><code>workspace</code></td><td><code>~/workspace</code></td><td>Every clone, every worktree, every uncommitted change</td></tr>
+        <tr><td><code>cargo-registry</code></td><td><code>~/.cargo/registry</code></td><td>Re-download every crate source from scratch</td></tr>
+        <tr><td><code>sccache</code></td><td><code>~/.cache/sccache</code></td><td>Every worktree's first build goes fully cold — the shared compilation cache is gone</td></tr>
+        <tr><td><code>claude-config</code></td><td><code>~/.claude</code></td><td>Claude Code login + settings. <code>~/.claude.json</code> is symlinked into it, so onboarding state and the per-project session index survive too</td></tr>
+        <tr><td><code>vscode-server</code></td><td><code>~/.vscode-server</code></td><td>The VS Code server is re-downloaded on every rebuild</td></tr>
+        <tr><td><code>orca</code>, <code>orca-relay</code>, <code>orca-remote</code></td><td><code>~/.orca*</code></td><td>Orca re-pushes its remote component and loses session state</td></tr>
+        <tr><td><code>ssh-host-keys</code></td><td><code>/etc/ssh/host-keys</code></td><td>Box looks like a new machine; strict clients refuse to connect</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="callout" style="margin-top:16px">
+    <strong>Mountpoints are pre-created in the image, owned by <code>dev</code>.</strong> A named volume
+    seeds itself from the image's content at that path <em>including ownership</em>. If the path is
+    absent from the image, Docker creates it empty and root-owned — and the entrypoint would have to
+    chown it on every start.
+  </div>
+</section>
+
+<!-- ── COMMANDS ─────────────────────────────────────────── -->
+<section>
+  <h2>Day to day</h2>
+  <div class="grid" style="grid-template-columns:1fr">
+    <div class="panel">
+      <h3>Host</h3>
+      <pre><code>ssh devbox                       # in
+docker compose up -d --build     # rebuild, keep all state
+docker compose restart devbox    # re-run setup (rotated key/token)
+docker exec -u root devbox bash  # root, when SUDO_PASSWORD is unset
+docker logs -f devbox            # sshd + setup warnings</code></pre>
+    </div>
+    <div class="panel">
+      <h3>Inside the box</h3>
+      <pre><code>cd ~/workspace/&lt;repo&gt;
+git worktree add ../&lt;repo&gt;-&lt;name&gt; -b &lt;branch&gt;
+cargo build                      # cold once, then incremental
+cargo nextest run                # routed by the shim too
+sccache --show-stats
+cargo clean                      # drops the sentinel → next build cold</code></pre>
+    </div>
+  </div>
+  <div class="callout b">
+    <strong>Rotating a key or token</strong> is a <code>docker compose up -d</code>, never a rebuild:
+    the host pubkey is re-read from the bind mount and the env files are rewritten from scratch on every
+    start.
+  </div>
+</section>
+
+<footer>
+  Generated from <code>devbox@e6a22bb</code> — Dockerfile, docker-compose.yml, entrypoint.sh,
+  user-setup.sh, cargo-shim.sh.
+</footer>
+
+</div>
+
+</body>
+</html>
