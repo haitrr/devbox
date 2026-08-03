@@ -380,8 +380,20 @@
           <code>docker exec -u root devbox</code>. A runaway process can't silently escalate</td></tr>
         <tr><td><code>GITHUB_KNOWN_HOSTS</code></td><td>Public, so it's defaulted in the committed
           compose file — a fresh clone works without a <code>.env</code></td></tr>
+        <tr><td><code>GIT_USER_NAME</code> / <code>GIT_USER_EMAIL</code></td><td>Written to
+          <code>~/.gitconfig</code> on every start. Not a secret, but per-user, so it lives in
+          <code>.env</code> rather than the committed compose file</td></tr>
       </table>
     </div>
+  </div>
+
+  <div class="callout">
+    <strong>Why <code>~/.gitconfig</code> is not on a volume.</strong> It is derived state — the
+    credential helper and the commit identity are both rewritten from the environment on every
+    start, so <code>.env</code> stays the one place they are set. The cost of getting this wrong is
+    quiet: a <code>git config --global</code> run by hand inside the box works until the next
+    rebuild, and then every commit fails with <code>Author identity unknown</code>. Agents hit it
+    hardest, since they get the error rather than a prompt.
   </div>
 </section>
 

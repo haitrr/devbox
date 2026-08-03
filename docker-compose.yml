@@ -31,6 +31,11 @@ services:
       # Read from ./.env (Compose loads it automatically). gh picks GH_TOKEN up
       # with no `gh auth login` step. Empty default so a missing .env isn't fatal.
       GH_TOKEN: "${GH_TOKEN:-}"
+      # Commit identity, applied to ~/.gitconfig on every start by user-setup.sh.
+      # That file is not on a volume, so setting it by hand inside the box lasts
+      # only until the next rebuild; keeping it in .env makes it survive one.
+      GIT_USER_NAME: "${GIT_USER_NAME:-}"
+      GIT_USER_EMAIL: "${GIT_USER_EMAIL:-}"
       # Long-lived subscription token from `claude setup-token` on the host.
       # Not ANTHROPIC_API_KEY — that would bill API credits instead of the plan.
       CLAUDE_CODE_OAUTH_TOKEN: "${CLAUDE_CODE_OAUTH_TOKEN:-}"
