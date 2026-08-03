@@ -61,6 +61,24 @@ if [ -n "${GH_TOKEN:-}" ] && command -v gh >/dev/null; then
     git config --global --add url."https://github.com/".insteadOf 'ssh://git@github.com/'
 fi
 
+# Commit identity. ~/.gitconfig is not on a volume, so a `git config --global`
+# run by hand inside the box is gone after the next rebuild and every commit
+# then dies with "Author identity unknown" — including agent commits, which
+# just fail rather than prompting. Written from the environment on every start
+# so .env stays the one place it is set. Not derived from `gh api user`: that
+# would put a network call in the boot path and return the GitHub handle and
+# noreply address rather than whatever the git history already uses.
+if [ -n "${GIT_USER_NAME:-}" ]; then
+    git config --global user.name "${GIT_USER_NAME}"
+fi
+if [ -n "${GIT_USER_EMAIL:-}" ]; then
+    git config --global user.email "${GIT_USER_EMAIL}"
+fi
+if [ -z "${GIT_USER_NAME:-}" ] || [ -z "${GIT_USER_EMAIL:-}" ]; then
+    echo "NOTE: GIT_USER_NAME/GIT_USER_EMAIL unset — commits will fail with" >&2
+    echo "      'Author identity unknown'. Set them in .env." >&2
+fi
+
 # ~/.claude.json holds Claude Code's onboarding state and its per-project session
 # index. It sits outside the .claude volume, so a rebuild both reset the login/
 # onboarding picker and orphaned every past session. Keep the real file inside

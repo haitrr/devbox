@@ -84,8 +84,8 @@ rustc — run `rustup toolchain install nightly --profile minimal` inside the bo
    that exact path read-only into the container on every start.
 
 2. **Env file.** Copy `.env.example` to `.env` and fill in `GH_TOKEN`,
-   `SUDO_PASSWORD`, and `CLAUDE_CODE_OAUTH_TOKEN` as needed. `.env` is
-   gitignored.
+   `GIT_USER_NAME`, `GIT_USER_EMAIL`, `SUDO_PASSWORD`, and
+   `CLAUDE_CODE_OAUTH_TOKEN` as needed. `.env` is gitignored.
 
 3. **Build and start.**
 
@@ -161,6 +161,14 @@ done by the dev user itself, so no ownership ever has to be repaired.
 | `CLAUDE_CODE_OAUTH_TOKEN` | Subscription token from `claude setup-token`. Deliberately not `ANTHROPIC_API_KEY` — that would bill API credits instead of the plan |
 | `SUDO_PASSWORD` | Unset means sudo is disabled entirely; root work goes through `docker exec -u root devbox`. A runaway process can't silently escalate |
 | `GITHUB_KNOWN_HOSTS` | Public data, so it's defaulted in the committed compose file — a fresh clone works without a `.env`. Override it in `.env` if GitHub rotates the key; takes effect on `up -d`, no rebuild |
+| `GIT_USER_NAME` / `GIT_USER_EMAIL` | Written to `~/.gitconfig` on every start. Not a secret, but per-user, so it lives in `.env` rather than the committed compose file |
+
+`~/.gitconfig` is deliberately not on a volume. It is derived state — the
+credential helper and the identity are both rewritten from the environment on
+every start, so `.env` stays the one place they are set. The cost of getting
+this wrong is quiet: a `git config --global` run by hand inside the box works
+until the next rebuild, and then every commit fails with `Author identity
+unknown`. Agents hit it hardest, since they get the error instead of a prompt.
 
 ## Orca remote
 
