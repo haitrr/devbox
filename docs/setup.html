@@ -244,6 +244,17 @@
     <code>known_hosts</code>) refuse to connect. They're generated once by the entrypoint into
     <code>/etc/ssh/host-keys</code> and kept.
   </div>
+
+  <div class="callout">
+    <strong>Why sshd probes its clients.</strong> Sessions arrive through the host's port forward,
+    and every NAT hop in that chain drops idle mappings after minutes — host sleep or Wi-Fi roaming
+    drops them outright. sshd's default is to send nothing and let <code>TCPKeepAlive</code> handle
+    dead peers, but that waits out the kernel's <code>tcp_keepalive_time</code> of 7200s, so a dead
+    session sits wedged for up to two hours. <code>ClientAliveInterval 15</code> with
+    <code>ClientAliveCountMax 8</code> holds the mapping open and reaps a silent peer in ~2 minutes.
+    Long-running agent sessions are what suffer. Clients want the mirror image —
+    <code>ServerAliveInterval 15</code>, <code>ServerAliveCountMax 8</code> — so both ends notice.
+  </div>
 </section>
 
 <!-- ── WHY A CONTAINER ──────────────────────────────────── -->

@@ -189,12 +189,22 @@ RUN mkdir -p \
 # Host keys live on a volume, not in the image: image-baked keys are regenerated
 # by every rebuild, so the container looks like a different machine each time and
 # strict SSH clients (Orca, and anything using known_hosts) refuse to connect.
+# ClientAlive* keeps long-lived sessions alive and detects dead ones promptly.
+# Connections arrive via the host's port forward on 2223, and every NAT hop in
+# that chain drops idle mappings after minutes; host sleep or Wi-Fi roaming kills
+# them outright. sshd defaults to ClientAliveInterval 0 (no probes) and leaves
+# dead-peer detection to TCPKeepAlive, whose first probe waits out the kernel's
+# tcp_keepalive_time — 7200s. So a session could sit wedged for two hours before
+# either end noticed. Probing every 15s holds the mapping open and gives up after
+# 8 misses (~2 min). Clients want the mirror image: ServerAliveInterval 15.
 RUN mkdir -p /run/sshd /etc/ssh/host-keys \
     && printf '%s\n' \
         'PasswordAuthentication no' \
         'PubkeyAuthentication yes' \
         'PermitRootLogin no' \
         'PermitUserEnvironment yes' \
+        'ClientAliveInterval 15' \
+        'ClientAliveCountMax 8' \
         'HostKey /etc/ssh/host-keys/ssh_host_ed25519_key' \
         'HostKey /etc/ssh/host-keys/ssh_host_rsa_key' \
         > /etc/ssh/sshd_config.d/devbox.conf
