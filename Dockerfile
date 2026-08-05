@@ -18,6 +18,10 @@ ARG NEXTEST_VERSION=0.9.140
 ARG CARGO_DENY_VERSION=0.20.2
 ARG CARGO_EXPAND_VERSION=1.0.124
 ARG CARGO_MACHETE_VERSION=0.9.2
+# uv (Astral's Python package manager, a static binary) and the code-review-graph
+# CLI it installs. Bump either independently.
+ARG UV_VERSION=0.12.1
+ARG CRG_VERSION=2.3.7
 
 # Base toolchain + sshd.
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
@@ -156,6 +160,33 @@ RUN mkdir -p -m 755 /etc/apt/keyrings \
     && apt-get update \
     && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends gh \
     && rm -rf /var/lib/apt/lists/*
+
+# code-review-graph — a Tree-sitter/MCP tool that maps a repo's structure so AI
+# assistants read only the blast radius of a change instead of the whole corpus.
+# Installed off its own toolchain: uv (Astral's static binary, matching this file's
+# prebuilt-into-/usr/local/bin pattern) lands alongside uvx, then `uv tool install`
+# builds a self-contained venv under /opt/uv on a uv-managed CPython — the ubuntu
+# base carries no python — and symlinks the `code-review-graph`/`crg-daemon`
+# launchers onto PATH. The UV_* vars are scoped to this RUN so they don't leak into
+# the dev user's own `uv`/`uvx` at runtime; a final chmod makes the venv and the
+# managed interpreter world-readable so the unprivileged user runs them too. uvx is
+# also left on PATH because the project's generated MCP config invokes it.
+RUN arch="$(dpkg --print-architecture)" \
+    && case "${arch}" in \
+         arm64) target=aarch64-unknown-linux-gnu ;; \
+         amd64) target=x86_64-unknown-linux-gnu ;; \
+         *) echo "unsupported architecture: ${arch}" >&2; exit 1 ;; \
+       esac \
+    && curl -fsSL "https://github.com/astral-sh/uv/releases/download/${UV_VERSION}/uv-${target}.tar.gz" \
+       | tar -xz --strip-components=1 -C /usr/local/bin \
+    && uv --version && uvx --version \
+    && UV_TOOL_DIR=/opt/uv/tools \
+       UV_TOOL_BIN_DIR=/usr/local/bin \
+       UV_PYTHON_INSTALL_DIR=/opt/uv/python \
+       UV_PYTHON_PREFERENCE=only-managed \
+       uv tool install --python 3.12 "code-review-graph@${CRG_VERSION}" \
+    && chmod -R a+rX /opt/uv \
+    && code-review-graph --version
 
 # Unprivileged user. sudo requires a password, so a process running as this user
 # cannot silently escalate to root. The entrypoint sets the password from

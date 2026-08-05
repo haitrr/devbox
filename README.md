@@ -65,6 +65,7 @@ Beyond the base toolchain (Rust via rustup, Node LTS, `gh`, `sccache`, `mold`,
 | Lint | `shellcheck`, `shfmt` |
 | Security | `trivy`, `cargo-deny` |
 | Cargo | `cargo-nextest`, `cargo-expand`, `cargo-machete` |
+| Python / AI | `uv` + `uvx` (Astral), `code-review-graph` (Tree-sitter/MCP review graph) |
 
 Versions are pinned as `ARG`s at the top of the `Dockerfile` for anything not
 taken from the Ubuntu archive. `cargo expand` additionally needs a nightly
