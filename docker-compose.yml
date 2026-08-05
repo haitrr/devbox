@@ -50,6 +50,15 @@ services:
       GITHUB_KNOWN_HOSTS: "${GITHUB_KNOWN_HOSTS:-github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl}"
     volumes:
       - ${HOME}/.ssh/id_ed25519.pub:/tmp/host_key.pub:ro
+      # Optional global instructions for Claude Code, copied to
+      # ~/.claude/CLAUDE.md by user-setup.sh on every start. The source is an
+      # .env knob rather than a literal ./CLAUDE_box.md because Docker creates a
+      # *directory* at a bind-mount source that doesn't exist — and CLAUDE_box.md
+      # is gitignored, so a fresh clone has none. That would litter the repo with
+      # a directory of that name and mount nothing, silently. /dev/null is a char
+      # device rather than a regular file, so user-setup.sh's -f test skips it and
+      # the feature stays off until you point CLAUDE_BOX_MD at a real file.
+      - ${CLAUDE_BOX_MD:-/dev/null}:/tmp/CLAUDE_box.md:ro
       - workspace:/home/dev/workspace
       - cargo-registry:/home/dev/.cargo/registry
       - sccache:/home/dev/.cache/sccache
