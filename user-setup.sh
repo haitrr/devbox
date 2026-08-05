@@ -79,6 +79,21 @@ if [ -z "${GIT_USER_NAME:-}" ] || [ -z "${GIT_USER_EMAIL:-}" ]; then
     echo "      'Author identity unknown'. Set them in .env." >&2
 fi
 
+# Global instructions for Claude Code, from the host's CLAUDE_box.md (see
+# CLAUDE_BOX_MD in docker-compose.yml). ~/.claude is a volume, so a CLAUDE.md
+# written in here by hand outlives a rebuild and would drift from the host copy;
+# rewriting it on every start makes the host the one source of truth, the same
+# way authorized_keys and ~/.gitconfig are handled above. Copied rather than
+# symlinked because the mount is read-only — a symlink would make the file
+# uneditable from inside the box and break anything that rewrites it in place.
+# `cat >` rather than `cp` keeps the destination's own mode and inode.
+# With CLAUDE_BOX_MD unset the mount is /dev/null, a char device, so -f is false
+# and nothing is installed.
+if [ -f /tmp/CLAUDE_box.md ]; then
+    mkdir -p "${HOME}/.claude"
+    cat /tmp/CLAUDE_box.md > "${HOME}/.claude/CLAUDE.md"
+fi
+
 # ~/.claude.json holds Claude Code's onboarding state and its per-project session
 # index. It sits outside the .claude volume, so a rebuild both reset the login/
 # onboarding picker and orphaned every past session. Keep the real file inside

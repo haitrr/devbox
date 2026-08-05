@@ -91,13 +91,26 @@ keep an environment isolated.
    `GIT_USER_NAME`, `GIT_USER_EMAIL`, `SUDO_PASSWORD`, and
    `CLAUDE_CODE_OAUTH_TOKEN` as needed. `.env` is gitignored.
 
-3. **Build and start.**
+3. **Claude Code instructions (optional).** To give Claude Code a global
+   `CLAUDE.md` inside the box:
+
+   ```sh
+   cp CLAUDE_box.example.md CLAUDE_box.md
+   ```
+
+   Edit it, then uncomment `CLAUDE_BOX_MD=./CLAUDE_box.md` in `.env`.
+   `user-setup.sh` copies the file to `~/.claude/CLAUDE.md` on every start, so
+   a change takes a restart rather than a rebuild. `CLAUDE_box.md` is
+   gitignored. Uncomment the `.env` line only once the file exists — see
+   [Why the path is an `.env` knob](#why-the-path-is-an-env-knob).
+
+4. **Build and start.**
 
    ```sh
    docker compose up -d --build
    ```
 
-4. **SSH config.** Add a `devbox` host entry so `ssh devbox` just works:
+5. **SSH config.** Add a `devbox` host entry so `ssh devbox` just works:
 
    ```
    Host devbox
@@ -124,7 +137,7 @@ keep an environment isolated.
 
    See [Sandbox](#sandbox) before keeping `ForwardAgent yes`.
 
-5. **Connect.**
+6. **Connect.**
 
    ```sh
    ssh devbox
@@ -144,8 +157,9 @@ done by the dev user itself, so no ownership ever has to be repaired.
    world-readable, which is exactly why no secret goes here.
 3. **`user-setup.sh`** (dev) — installs the host pubkey as `authorized_keys`,
    writes `~/.ssh/environment` for non-interactive sessions and
-   `~/.config/devbox-env.sh` mode 600 for the tokens, and wires `gh` as git's
-   credential helper.
+   `~/.config/devbox-env.sh` mode 600 for the tokens, wires `gh` as git's
+   credential helper, sets the commit identity, and installs `CLAUDE_box.md`
+   as `~/.claude/CLAUDE.md` if `CLAUDE_BOX_MD` points at one.
 4. **`sshd -D -e`** — foreground, logging to the container.
    `restart: unless-stopped` keeps the box up across reboots.
 
@@ -166,6 +180,7 @@ done by the dev user itself, so no ownership ever has to be repaired.
 | `SUDO_PASSWORD` | Unset means sudo is disabled entirely; root work goes through `docker exec -u root devbox`. A runaway process can't silently escalate |
 | `GITHUB_KNOWN_HOSTS` | Public data, so it's defaulted in the committed compose file — a fresh clone works without a `.env`. Override it in `.env` if GitHub rotates the key; takes effect on `up -d`, no rebuild |
 | `GIT_USER_NAME` / `GIT_USER_EMAIL` | Written to `~/.gitconfig` on every start. Not a secret, but per-user, so it lives in `.env` rather than the committed compose file |
+| `CLAUDE_BOX_MD` | Host path to a `CLAUDE.md` copied to `~/.claude/CLAUDE.md` on every start. Unset means the mount falls back to `/dev/null` and nothing is installed |
 
 `~/.gitconfig` is deliberately not on a volume. It is derived state — the
 credential helper and the identity are both rewritten from the environment on
@@ -173,6 +188,26 @@ every start, so `.env` stays the one place they are set. The cost of getting
 this wrong is quiet: a `git config --global` run by hand inside the box works
 until the next rebuild, and then every commit fails with `Author identity
 unknown`. Agents hit it hardest, since they get the error instead of a prompt.
+
+`~/.claude/CLAUDE.md` works the same way, and for the same reason. That path
+*is* on a volume, so a file written there by hand outlives a rebuild and then
+quietly disagrees with the host's `CLAUDE_box.md`. Rewriting it on every start
+keeps one source of truth; the trade is that in-box edits to it are overwritten
+the next time the box comes up. Edit `CLAUDE_box.md` on the host instead.
+
+### Why the path is an `.env` knob
+
+`CLAUDE_box.md` is gitignored, so a fresh clone doesn't have one — and Docker
+turns a bind-mount source that doesn't exist into a *directory*. Mounting
+`./CLAUDE_box.md` literally would therefore leave a stray `CLAUDE_box.md/`
+directory in the repo and install nothing, with no error. Routing the path
+through `CLAUDE_BOX_MD` lets the compose file default to `/dev/null`, which is
+a character device rather than a regular file, so `user-setup.sh`'s `-f` test
+skips it and the feature is simply off until you opt in. It's the same trick
+the `GITHUB_KNOWN_HOSTS` default uses: keep a fresh clone working without a
+`.env`.
+
+If you do hit it, `rmdir CLAUDE_box.md` and create the file for real.
 
 ## Orca remote
 
