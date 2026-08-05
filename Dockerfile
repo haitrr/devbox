@@ -188,6 +188,37 @@ RUN arch="$(dpkg --print-architecture)" \
     && chmod -R a+rX /opt/uv \
     && code-review-graph --version
 
+# Python + pip. The base image ships no interpreter at all — the only python in
+# here is the one uv hides under /opt/uv for code-review-graph's venv, which is an
+# implementation detail of that tool, not a runtime — so shebangs, `python3` and
+# `pip install` all miss. Taken from the Ubuntu archive rather than given the
+# upstream-binary treatment the rest of this file gives lagging tools: 24.04 is on
+# 3.12 and lands at /usr/bin/python3, which is where everything expects it.
+# python3-dev plus the build-essential above lets C-extension wheels compile from
+# an sdist when no wheel matches; python3-venv covers throwaway envs (as does uv).
+# The symlinks provide the unsuffixed `python`/`pip` names out of /usr/local/bin,
+# already on PATH for interactive and non-interactive SSH alike, in preference to
+# python-is-python3 — that package owns /usr/bin/python and fights anything else
+# that later wants the name.
+#
+# pip.conf lifts Ubuntu's PEP 668 externally-managed guard, which otherwise makes
+# a bare `pip install requests` fail with a wall of text. In a disposable container
+# a global install is the expected ergonomic, and flipping the documented flag is
+# explicit and reversible where deleting the EXTERNALLY-MANAGED marker is neither.
+# It matters for the dev user too: unprivileged installs fall back to a --user
+# install, which the same guard blocks, and those land in ~/.local/bin — already
+# first on PATH for the cargo shim, so pip-installed console scripts just work.
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+        python3 \
+        python3-dev \
+        python3-pip \
+        python3-venv \
+    && rm -rf /var/lib/apt/lists/* \
+    && ln -sf /usr/bin/python3 /usr/local/bin/python \
+    && ln -sf /usr/bin/pip3 /usr/local/bin/pip \
+    && printf '%s\n' '[global]' 'break-system-packages = true' > /etc/pip.conf \
+    && python --version && pip --version
+
 # Unprivileged user. sudo requires a password, so a process running as this user
 # cannot silently escalate to root. The entrypoint sets the password from
 # SUDO_PASSWORD; with none set the account stays locked and sudo is unusable.
