@@ -77,6 +77,13 @@ case "$subcmd" in
     *) exec "$REAL_CARGO" "$@" ;;   # fmt, tree, add, metadata, ... pass straight through
 esac
 
+# Codegen-producing subcommands only. check/clippy/doc emit metadata (no .rlib),
+# so flipping on them turns sccache off before deps are ever codegen'd through it.
+case "$subcmd" in
+    build|b|test|t|run|r|bench|nextest) codegen=1 ;;
+    *) codegen=0 ;;
+esac
+
 # Locate this build's target dir so the sentinel travels with it.
 if [ -n "${CARGO_TARGET_DIR:-}" ]; then
     target_dir="$CARGO_TARGET_DIR"
@@ -95,7 +102,7 @@ fi
 status=0
 env RUSTC_WRAPPER=sccache CARGO_INCREMENTAL=0 "$REAL_CARGO" "$@" || status=$?
 # Only flip to warm after a successful cold build, so a failed build retries cold.
-if [ "$status" -eq 0 ]; then
+if [ "$status" -eq 0 ] && [ "$codegen" = 1 ]; then
     mkdir -p "$target_dir"
     : > "$sentinel"
 fi
