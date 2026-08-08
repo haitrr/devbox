@@ -230,8 +230,15 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-ins
 # old names as pure virtuals with no binary published; the t64 packages Provide
 # them, so a .deb depending on the historical name is still satisfied. The rest
 # of the set kept its name, and libuuid1 is already in via the base layer.
+# libgbm1 and libasound2t64 are not in that declared set, yet the Electron binary
+# lists libgbm.so.1 and libasound.so.2 as NEEDED — Pane's control file understates
+# what it links. dpkg is happy either way; the launch is what fails, with
+# "error while loading shared libraries: libgbm.so.1". Chromium wants both even
+# headless, so they belong here rather than with anything display-related.
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+        libasound2t64 \
         libatspi2.0-0t64 \
+        libgbm1 \
         libgtk-3-0t64 \
         libnotify4 \
         libnss3 \
