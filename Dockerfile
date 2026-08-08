@@ -219,34 +219,6 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-ins
     && printf '%s\n' '[global]' 'break-system-packages = true' > /etc/pip.conf \
     && python --version && pip --version
 
-# Runtime libraries for Electron/GTK desktop packages, so a `.deb` like Pane's
-# installs cleanly instead of unpacking and then failing to configure — dpkg
-# leaves such a package half-installed (iU), which wedges every later apt run
-# until it is forced through or removed. This is the dependency set those .debs
-# declare, not a full desktop: the box stays headless, and an app that needs a
-# screen still needs a display exported to it.
-# The names are the 24.04 ones. Ubuntu's 64-bit time_t transition renamed
-# libgtk-3-0 to libgtk-3-0t64 and libatspi2.0-0 to libatspi2.0-0t64, leaving the
-# old names as pure virtuals with no binary published; the t64 packages Provide
-# them, so a .deb depending on the historical name is still satisfied. The rest
-# of the set kept its name, and libuuid1 is already in via the base layer.
-# libgbm1 and libasound2t64 are not in that declared set, yet the Electron binary
-# lists libgbm.so.1 and libasound.so.2 as NEEDED — Pane's control file understates
-# what it links. dpkg is happy either way; the launch is what fails, with
-# "error while loading shared libraries: libgbm.so.1". Chromium wants both even
-# headless, so they belong here rather than with anything display-related.
-RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-        libasound2t64 \
-        libatspi2.0-0t64 \
-        libgbm1 \
-        libgtk-3-0t64 \
-        libnotify4 \
-        libnss3 \
-        libxss1 \
-        libxtst6 \
-        xdg-utils \
-    && rm -rf /var/lib/apt/lists/*
-
 # Unprivileged user. sudo requires a password, so a process running as this user
 # cannot silently escalate to root. The entrypoint sets the password from
 # SUDO_PASSWORD; with none set the account stays locked and sudo is unusable.

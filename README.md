@@ -66,19 +66,10 @@ Beyond the base toolchain (Rust via rustup, Node LTS, `gh`, `sccache`, `mold`,
 | Security | `trivy`, `cargo-deny` |
 | Cargo | `cargo-nextest`, `cargo-expand`, `cargo-machete` |
 | Python / AI | `python3` + `pip` (3.12, `python`/`pip` aliases on PATH), `uv` + `uvx` (Astral), `code-review-graph` (Tree-sitter/MCP review graph) |
-| Desktop `.deb` deps | GTK/Electron runtime libs (`libgtk-3-0t64`, `libnss3`, `libatspi2.0-0t64`, `libnotify4`, `libxss1`, `libxtst6`, `libgbm1`, `libasound2t64`, `xdg-utils`) |
 
 Versions are pinned as `ARG`s at the top of the `Dockerfile` for anything not
 taken from the Ubuntu archive. `cargo expand` additionally needs a nightly
 rustc — run `rustup toolchain install nightly --profile minimal` inside the box.
-The GTK/Electron libraries are there so desktop `.deb`s (Pane, for one) configure
-instead of stalling half-installed on a missing dependency, and so the binary can
-actually load: `libgbm1` and `libasound2t64` are linked by Electron but missing
-from Pane's declared dependencies, so without them the install succeeds and the
-launch dies on `libgbm.so.1: cannot open shared object file`. Such an app also
-needs `security_opt: seccomp:unconfined` (see [Sandbox](#sandbox)) for its own
-Chromium sandbox to start. The box is still headless, so actually *running* one
-needs a display exported to it.
 `pip` installs globally: `/etc/pip.conf` sets `break-system-packages`, so Ubuntu's
 PEP 668 guard won't refuse a bare `pip install`. Use a venv or `uv` if you'd rather
 keep an environment isolated.
@@ -357,13 +348,6 @@ only a reasonable trade because the container bounds the damage.
 - `CLAUDE_CODE_OAUTH_TOKEN`, i.e. the subscription itself.
 - Unrestricted network egress, plus whatever the LAN and host expose to the
   container. Published ports 2223 and 3000 bind on all interfaces.
-- **The host kernel's syscall surface.** `security_opt: seccomp:unconfined` in
-  `docker-compose.yml` turns off Docker's default syscall filter, because
-  Chromium/Electron desktop apps (Pane) need `unshare(CLONE_NEWUSER)` for their
-  own sandbox and the default profile denies it. Capabilities are still the
-  default set, so this is not `privileged` — but a kernel exploit that the filter
-  would have blocked is now reachable from inside. Remove the two lines if you
-  don't run desktop apps in here.
 
 **`ForwardAgent yes`** is the hole in "the private key never enters the
 container": for the life of an `ssh devbox` session the host's SSH agent is

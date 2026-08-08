@@ -5,19 +5,6 @@ services:
     hostname: devbox
     init: true
     restart: unless-stopped
-    # Docker's default seccomp profile refuses unshare(CLONE_NEWUSER) for a
-    # container without CAP_SYS_ADMIN, and Chromium/Electron builds its zygote
-    # sandbox out of exactly that namespace — so a desktop .deb like Pane's dies
-    # on startup with "Failed to move to new namespace ... errno = Operation not
-    # permitted", and its postinst prints the same failure from unshare(1).
-    # Unconfining seccomp lifts the syscall filter for everything in the box, not
-    # just the app that wanted it: this is a single-user disposable dev container
-    # and the syscall filter is not the boundary it leans on, but it does mean
-    # code running in here — agents included — reaches the host kernel through a
-    # wider surface. Drop this line and Pane needs ELECTRON_DISABLE_SANDBOX=1
-    # instead, which trades the same protection the other way round.
-    security_opt:
-      - seccomp:unconfined
     ports:
       # Host 2223 -> sshd. 2222 is taken by VS Code's devcontainer forwarder.
       - "2223:22"
