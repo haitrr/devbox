@@ -66,10 +66,14 @@ Beyond the base toolchain (Rust via rustup, Node LTS, `gh`, `sccache`, `mold`,
 | Security | `trivy`, `cargo-deny` |
 | Cargo | `cargo-nextest`, `cargo-expand`, `cargo-machete` |
 | Python / AI | `python3` + `pip` (3.12, `python`/`pip` aliases on PATH), `uv` + `uvx` (Astral), `code-review-graph` (Tree-sitter/MCP review graph) |
+| Desktop `.deb` deps | GTK/Electron runtime libs (`libgtk-3-0t64`, `libnss3`, `libatspi2.0-0t64`, `libnotify4`, `libxss1`, `libxtst6`, `xdg-utils`) |
 
 Versions are pinned as `ARG`s at the top of the `Dockerfile` for anything not
 taken from the Ubuntu archive. `cargo expand` additionally needs a nightly
 rustc — run `rustup toolchain install nightly --profile minimal` inside the box.
+The GTK/Electron libraries are there so desktop `.deb`s (Pane, for one) configure
+instead of stalling half-installed on a missing dependency — the box is still
+headless, so actually *running* such an app needs a display exported to it.
 `pip` installs globally: `/etc/pip.conf` sets `break-system-packages`, so Ubuntu's
 PEP 668 guard won't refuse a bare `pip install`. Use a venv or `uv` if you'd rather
 keep an environment isolated.
