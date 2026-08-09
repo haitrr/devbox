@@ -22,6 +22,11 @@ ARG CARGO_MACHETE_VERSION=0.9.2
 # CLI it installs. Bump either independently.
 ARG UV_VERSION=0.12.1
 ARG CRG_VERSION=2.3.7
+# Playwright. The browser builds are keyed to the release that downloaded them,
+# so bumping this re-downloads them on the next build. Chromium only by default:
+# adding firefox and webkit roughly triples the layer.
+ARG PLAYWRIGHT_VERSION=1.62.1
+ARG PLAYWRIGHT_BROWSERS="chromium"
 
 # Base toolchain + sshd.
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
@@ -227,6 +232,36 @@ RUN useradd --create-home --shell /bin/bash ${USERNAME} \
     && echo "${USERNAME} ALL=(ALL) ALL" > /etc/sudoers.d/${USERNAME} \
     && chmod 0440 /etc/sudoers.d/${USERNAME} \
     && passwd --lock ${USERNAME}
+
+# Playwright: the runner and CLI globally, plus the browser builds and the system
+# libraries they need, so `playwright test` in a fresh clone runs instead of
+# stopping to download half a gigabyte first.
+#
+# Browsers go to /opt/playwright rather than the default ~/.cache/ms-playwright:
+# the download runs as root here, and a per-user cache written by root is exactly
+# what the dev user then can't use. The directory is handed to that user
+# afterwards so an unprivileged `playwright install` still works — a project
+# pinned to a different playwright version wants a different browser revision and
+# will fetch it, since revisions live in sibling directories rather than
+# overwriting these. PLAYWRIGHT_BROWSERS_PATH has to be set twice to be seen
+# everywhere: as an ENV for `docker exec`, and in /etc/environment for SSH
+# sessions, which inherit nothing from the daemon (the same reason PATH is
+# written there below).
+#
+# `--with-deps` apt-installs Chromium's runtime libraries — libgtk-3-0t64,
+# libnss3, libgbm1, libasound2t64, fonts. That is close to the set 475d751
+# removed, arrived at from the other end: there they existed so a desktop .deb
+# would configure, here headless Chromium cannot start without them. Nothing
+# comes back with them, in particular not `seccomp:unconfined` — Playwright
+# launches Chromium with chromiumSandbox off, so it never asks for
+# unshare(CLONE_NEWUSER) and Docker's default profile stays intact.
+ENV PLAYWRIGHT_BROWSERS_PATH=/opt/playwright
+RUN npm install -g "@playwright/test@${PLAYWRIGHT_VERSION}" \
+    && playwright install --with-deps ${PLAYWRIGHT_BROWSERS} \
+    && rm -rf /var/lib/apt/lists/* \
+    && chown -R ${USERNAME}:${USERNAME} /opt/playwright \
+    && echo 'PLAYWRIGHT_BROWSERS_PATH=/opt/playwright' >> /etc/environment \
+    && playwright --version
 
 # Create every volume mountpoint here, owned by the user. A named volume seeds
 # itself from the image's content at that path *including ownership*; when the
