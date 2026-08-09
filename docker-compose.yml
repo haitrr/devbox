@@ -5,6 +5,12 @@ services:
     hostname: devbox
     init: true
     restart: unless-stopped
+    # Chromium puts its renderer shared memory in /dev/shm, and Docker's 64MB
+    # default is small enough that a Playwright run on a heavy page dies with
+    # "Target crashed" partway through. Playwright's own advice is `--ipc=host`,
+    # which also hands the container the host's IPC namespace; a bigger /dev/shm
+    # fixes the same crash without reaching outside the box.
+    shm_size: "1gb"
     ports:
       # Host 2223 -> sshd. 2222 is taken by VS Code's devcontainer forwarder.
       - "2223:22"

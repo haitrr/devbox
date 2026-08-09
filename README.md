@@ -66,6 +66,7 @@ Beyond the base toolchain (Rust via rustup, Node LTS, `gh`, `sccache`, `mold`,
 | Security | `trivy`, `cargo-deny` |
 | Cargo | `cargo-nextest`, `cargo-expand`, `cargo-machete` |
 | Python / AI | `python3` + `pip` (3.12, `python`/`pip` aliases on PATH), `uv` + `uvx` (Astral), `code-review-graph` (Tree-sitter/MCP review graph) |
+| Browser tests | `playwright` (`@playwright/test`) with Chromium and its runtime libraries prebuilt into the image |
 
 Versions are pinned as `ARG`s at the top of the `Dockerfile` for anything not
 taken from the Ubuntu archive. `cargo expand` additionally needs a nightly
@@ -73,6 +74,18 @@ rustc — run `rustup toolchain install nightly --profile minimal` inside the bo
 `pip` installs globally: `/etc/pip.conf` sets `break-system-packages`, so Ubuntu's
 PEP 668 guard won't refuse a bare `pip install`. Use a venv or `uv` if you'd rather
 keep an environment isolated.
+
+Playwright's browsers live in `/opt/playwright`, not the usual
+`~/.cache/ms-playwright`, and `PLAYWRIGHT_BROWSERS_PATH` points every playwright
+in the box at it — so `playwright test` runs without a download first, and a
+project pinned to a different playwright version fetches just the browser
+revision it wants (`playwright install`, no sudo: the directory belongs to
+`dev`). Chromium is the only browser in the image; build with
+`--build-arg PLAYWRIGHT_BROWSERS="chromium firefox webkit"` for the full set,
+at roughly another gigabyte. It runs headless with its own sandbox off, which is
+Playwright's default, so none of this asks for the syscall filter to be relaxed
+(see [Sandbox](#sandbox)). `shm_size: 1gb` in `docker-compose.yml` is there
+because Docker's 64MB `/dev/shm` crashes Chromium mid-run.
 
 ## Setup
 
