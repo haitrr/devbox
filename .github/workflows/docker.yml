@@ -1,0 +1,141 @@
+name: Docker
+
+# Builds the devbox image and publishes it to Docker Hub.
+#
+# Each architecture is built on a runner of that architecture — the Dockerfile
+# pulls arch-specific upstream binaries (sccache, mold, yq, trivy, duckdb, ...)
+# and QEMU emulation would make an amd64 build on an arm64 runner, or the
+# reverse, take hours. Public repos get `ubuntu-24.04-arm` for free, so both
+# halves run natively and in parallel; the `merge` job then stitches the two
+# per-arch images into a single multi-arch tag.
+#
+# Pull requests build but do not push, so a broken Dockerfile is caught before
+# it can replace `latest`.
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+    # Docs-only commits do not change the image.
+    paths-ignore:
+      - "README.md"
+      - "docs/**"
+  pull_request:
+    paths-ignore:
+      - "README.md"
+      - "docs/**"
+  workflow_dispatch:
+
+env:
+  # Must match the Docker Hub repository to publish to. The account that
+  # DOCKERHUB_USERNAME / DOCKERHUB_TOKEN authenticate as needs write access
+  # to it.
+  IMAGE: haitrr/devbox
+
+concurrency:
+  group: docker-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: build (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # Build one single-arch image and push it by digest only — no tag. The
+      # merge job assembles the tags once both digests exist, so a half-finished
+      # matrix never leaves a tag pointing at one architecture.
+      #
+      # provenance/sbom are off: they turn each build into a manifest list of
+      # its own, which the digest-based merge below cannot index.
+      - name: Build and push by digest
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/${{ matrix.arch }}
+          provenance: false
+          sbom: false
+          outputs: type=image,name=${{ env.IMAGE }},push-by-digest=true,name-canonical=true,push=${{ github.event_name != 'pull_request' }}
+          cache-from: type=gha,scope=${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.arch }}
+
+      - name: Export digest
+        if: github.event_name != 'pull_request'
+        run: |
+          mkdir -p /tmp/digests
+          digest="${{ steps.build.outputs.digest }}"
+          # Filename is the bare hex digest; the merge job re-adds the prefix.
+          touch "/tmp/digests/${digest#sha256:}"
+
+      - name: Upload digest
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: digest-${{ matrix.arch }}
+          path: /tmp/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  merge:
+    name: publish multi-arch tags
+    if: github.event_name != 'pull_request'
+    needs: build
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Download digests
+        uses: actions/download-artifact@v4
+        with:
+          path: /tmp/digests
+          pattern: digest-*
+          merge-multiple: true
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Compute tags
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE }}
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,format=long
+
+      # The digest filenames are the per-arch manifest digests; `imagetools
+      # create` indexes them under every computed tag in one push.
+      - name: Create manifest list and push
+        working-directory: /tmp/digests
+        run: |
+          docker buildx imagetools create \
+            $(jq -cr '.tags | map("-t " + .) | join(" ")' <<<"$DOCKER_METADATA_OUTPUT_JSON") \
+            $(printf '${{ env.IMAGE }}@sha256:%s ' *)
+
+      - name: Inspect
+        run: docker buildx imagetools inspect "${{ env.IMAGE }}:${{ steps.meta.outputs.version }}"
