@@ -26,12 +26,6 @@ on:
       - "docs/**"
   workflow_dispatch:
 
-env:
-  # Must match the Docker Hub repository to publish to. The account that
-  # DOCKERHUB_USERNAME / DOCKERHUB_TOKEN authenticate as needs write access
-  # to it.
-  IMAGE: haitrr/devbox
-
 concurrency:
   group: docker-${{ github.ref }}
   cancel-in-progress: true
@@ -41,6 +35,14 @@ jobs:
     name: build (${{ matrix.arch }})
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 90
+    # The namespace is the account DOCKERHUB_USERNAME authenticates as, so the
+    # target can never drift from the credentials that log in. It has to be
+    # job-level: workflow-level `env` cannot read the secrets context. Secret
+    # masking renders it as ***/devbox in the logs. Fork PRs get no secrets,
+    # and an empty namespace is an invalid reference even for a build that
+    # never pushes — hence the fallback.
+    env:
+      IMAGE: ${{ secrets.DOCKERHUB_USERNAME || 'localbuild' }}/devbox
     strategy:
       fail-fast: false
       matrix:
@@ -101,6 +103,8 @@ jobs:
     if: github.event_name != 'pull_request'
     needs: build
     runs-on: ubuntu-24.04
+    env:
+      IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/devbox
     steps:
       - name: Download digests
         uses: actions/download-artifact@v4
