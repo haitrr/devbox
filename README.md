@@ -359,6 +359,42 @@ The container protects the host, not the work. Nothing here recovers
 uncommitted changes from a worktree an agent trashed; that is what the
 one-worktree-per-session layout and frequent commits are for.
 
+## Published image
+
+`.github/workflows/docker.yml` builds the image on every push to `main` and
+publishes it to Docker Hub as [`haitrr/devbox`][hub]. Pull requests build the
+Dockerfile but push nothing, so a broken build can't replace `latest`.
+
+[hub]: https://hub.docker.com/r/haitrr/devbox
+
+`linux/amd64` and `linux/arm64` are built on runners of their own architecture
+— the Dockerfile fetches arch-specific upstream binaries (sccache, mold, yq,
+trivy, duckdb), and QEMU emulation would turn a build into an hours-long one.
+The two per-arch images are pushed by digest only and joined into one
+multi-arch tag at the end, so a tag never points at a half-finished matrix.
+
+| Tag | Points at |
+| --- | --- |
+| `latest` | The most recent `main` |
+| `sha-<full commit sha>` | Every pushed commit |
+| `<x.y.z>`, `<x.y>` | A pushed `v*` tag |
+
+Two repository secrets are required — **Settings → Secrets and variables →
+Actions**:
+
+| Secret | Value |
+| --- | --- |
+| `DOCKERHUB_USERNAME` | Docker Hub account with write access to the repository |
+| `DOCKERHUB_TOKEN` | A Docker Hub **access token** (Account Settings → Personal access tokens), not the account password |
+
+The `IMAGE` value at the top of the workflow is the Docker Hub repository to
+publish to; change it there if you fork this.
+
+The compose file still builds from the local `Dockerfile` — that's the point of
+a box you edit. To run the published image instead, drop `build: .` for
+`image: haitrr/devbox:latest` in an override file; everything else (volumes,
+ports, env) is unchanged.
+
 ## Day to day
 
 On the host:
