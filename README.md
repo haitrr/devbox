@@ -315,7 +315,7 @@ The rest of the build environment:
 | `-C link-arg=-fuse-ld=mold` | mold as the linker for aarch64-unknown-linux-gnu, installed from upstream releases because Ubuntu 24.04 ships mold 2.30 from Mar 2024 |
 | `CARGO_PROFILE_DEV_DEBUG=0` | No debuginfo in dev builds; the single biggest cut to link time and target-dir size |
 | `CARGO_PROFILE_DEV_SPLIT_DEBUGINFO=off` | Nothing to split once debug is off |
-| `SCCACHE_CACHE_SIZE=20G` | Global, shared by every worktree and every clean build |
+| `SCCACHE_CACHE_SIZE=40G` | Global, shared by every worktree and every clean build |
 | cargo-registry volume | Downloaded crate sources, kept across rebuilds |
 
 ## Volumes: what survives a rebuild, and why it has to
