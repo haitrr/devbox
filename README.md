@@ -266,56 +266,38 @@ inside whichever tree it was working in.
 There is deliberately **no shared `CARGO_TARGET_DIR`**. A shared one made every
 cargo invocation in the box serialize on cargo's per-target-dir build lock —
 *"Blocking waiting for file lock on build directory"* — which reads as a hang
-under agent and non-interactive runs. Each worktree gets its own `./target`;
-sccache is what shares work between them, and it does so safely.
+under agent and non-interactive runs. Each worktree gets its own `./target`,
+and nothing is shared between them beyond the crate registry.
 
-## Cargo: the shim, sccache, and mold
+## Cargo: mold, and sccache if you ask for it
 
-sccache and `CARGO_INCREMENTAL` are mutually exclusive — sccache refuses to run
-as a rustc wrapper when incremental is on. Their value is temporally disjoint,
-though, so `~/.local/bin/cargo` (`cargo-shim.sh`) sits ahead of the real cargo
-on PATH and picks one per worktree per phase. It calls the real cargo by
-absolute path, so it never recurses.
+Builds are plain cargo: incremental on (cargo's own default), mold as the
+linker, no rustc wrapper. Nothing in the environment reaches into the build
+anymore.
 
-```mermaid
-flowchart LR
-  a["cargo …"] --> b{"compile<br/>subcommand?"}
-  b -- "no — fmt, add, tree, metadata" --> pass["exec real cargo, untouched"]
-  b -- "yes — build, check, test,<br/>run, bench, clippy, doc, nextest" --> c{"./target/<br/>.sccache-warmed?"}
-  c -- absent --> cold["COLD — first build in this worktree<br/>RUSTC_WRAPPER=sccache · CARGO_INCREMENTAL=0<br/>warms the dep graph from the global cache"]
-  c -- present --> warm["WARM — every build after<br/>no RUSTC_WRAPPER · CARGO_INCREMENTAL=1<br/>only edited crates recompile"]
-  cold -- "on success only" --> s["touch the sentinel"]
-  s -.- warm
+sccache is still installed, and its cache directory is still a volume — it is
+just not wired up by default. It and `CARGO_INCREMENTAL` are mutually exclusive
+(sccache refuses to run as a rustc wrapper when incremental is on: *"incremental
+compilation is prohibited"*), and the incremental inner loop is worth more than
+cross-worktree dependency reuse. Opt in per command when a cold build makes that
+trade worth it:
+
+```sh
+RUSTC_WRAPPER=sccache CARGO_INCREMENTAL=0 cargo build
 ```
 
-Subcommand parsing skips flags, `+toolchain`, and values consumed by `-Z`,
-`-C`, `--color` and `--config`, so `cargo -Z unstable-options build` is still
-recognized as a build. A failed cold build leaves no sentinel, so the next
-attempt retries cold. The flip is one-directional by design: toggling
-incremental 0↔1 would thrash local-crate fingerprints on every build.
+Setting the same two in `docker-compose.yml` or `.env` makes it global again —
+they are picked up by `/etc/profile.d/devbox-env.sh` and `~/.ssh/environment`
+like every other `CARGO_*`/`SCCACHE_*` var. Note that with `SCCACHE_CACHE_SIZE`
+unset the cache caps at sccache's 10G default.
 
-Sharp edges:
-
-- **Warm a worktree with `cargo build`, not `cargo check`.** A cold `check`
-  only produces dep `.rmeta`; a later `build` — now with sccache off — would
-  have to codegen every dependency from scratch. `build` seeds both.
-- **The flip costs a one-time recompile** of your local crates, because
-  turning incremental on changes their rustc flags and invalidates their
-  fingerprint. Dependencies are unaffected; they are never incremental.
-- **Concurrency:** two builds racing in the same worktree before the sentinel
-  is written invalidate each other's local fingerprints once. Wasteful,
-  harmless.
-- `cargo clean` wipes the target dir including the sentinel, so the next build
-  correctly starts cold again.
-
-The rest of the build environment:
+The build environment:
 
 | | |
 | --- | --- |
 | `-C link-arg=-fuse-ld=mold` | mold as the linker for aarch64-unknown-linux-gnu, installed from upstream releases because Ubuntu 24.04 ships mold 2.30 from Mar 2024 |
 | `CARGO_PROFILE_DEV_DEBUG=0` | No debuginfo in dev builds; the single biggest cut to link time and target-dir size |
 | `CARGO_PROFILE_DEV_SPLIT_DEBUGINFO=off` | Nothing to split once debug is off |
-| `SCCACHE_CACHE_SIZE=40G` | Global, shared by every worktree and every clean build |
 | cargo-registry volume | Downloaded crate sources, kept across rebuilds |
 
 ## Volumes: what survives a rebuild, and why it has to
@@ -324,7 +306,7 @@ The rest of the build environment:
 | --- | --- | --- |
 | `workspace` | `~/workspace` | Every clone, every worktree, every uncommitted change |
 | `cargo-registry` | `~/.cargo/registry` | Re-download every crate source from scratch |
-| `sccache` | `~/.cache/sccache` | Every worktree's first build goes fully cold — the shared compilation cache is gone |
+| `sccache` | `~/.cache/sccache` | Opt-in `RUSTC_WRAPPER=sccache` builds start from an empty cache after every rebuild |
 | `claude-config` | `~/.claude` | Claude Code login and settings. `~/.claude.json` is symlinked into it, so onboarding state and the per-project session index survive too |
 | `vscode-server` | `~/.vscode-server` | The VS Code server is re-downloaded on every rebuild |
 | `orca`, `orca-relay`, `orca-remote` | `~/.orca*` | Orca re-pushes its remote component and loses session state |
@@ -428,10 +410,10 @@ Inside the box:
 ```sh
 cd ~/workspace/<repo>
 git worktree add ../<repo>-<name> -b <branch>
-cargo build                      # cold once, then incremental
-cargo nextest run                # routed by the shim too
+cargo build                      # plain incremental build, mold linker
+cargo nextest run
+RUSTC_WRAPPER=sccache CARGO_INCREMENTAL=0 cargo build   # opt into sccache
 sccache --show-stats
-cargo clean                      # drops the sentinel → next build cold
 ```
 
 Rotating a key or token is a `docker compose up -d`, never a rebuild: the host

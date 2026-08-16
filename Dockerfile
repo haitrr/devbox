@@ -211,8 +211,8 @@ RUN arch="$(dpkg --print-architecture)" \
 # a global install is the expected ergonomic, and flipping the documented flag is
 # explicit and reversible where deleting the EXTERNALLY-MANAGED marker is neither.
 # It matters for the dev user too: unprivileged installs fall back to a --user
-# install, which the same guard blocks, and those land in ~/.local/bin — already
-# first on PATH for the cargo shim, so pip-installed console scripts just work.
+# install, which the same guard blocks, and those land in ~/.local/bin — which is
+# first on PATH, so pip-installed console scripts just work.
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
         python3 \
         python3-dev \
@@ -311,20 +311,18 @@ RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
     | sh -s -- -y --no-modify-path --profile minimal --component clippy --component rustfmt
 
 USER root
-# Cargo shim: sccache for a worktree's cold build, then incremental for the inner
-# loop (see cargo-shim.sh). Installed ahead of ~/.cargo/bin so plain `cargo` hits
-# it; the shim calls the real cargo by absolute path.
-COPY cargo-shim.sh /home/${USERNAME}/.local/bin/cargo
-RUN chmod 0755 /home/${USERNAME}/.local/bin/cargo \
+# ~/.local/bin is where `pip install --user` and uv put console scripts. Created
+# here so it exists (and is owned by the user) before anything writes into it.
+RUN mkdir -p /home/${USERNAME}/.local/bin \
     && chown -R ${USERNAME}:${USERNAME} /home/${USERNAME}/.local
 
-# Interactive shells get the shim, then cargo, on PATH; the entrypoint appends the
-# CARGO_* vars here.
+# Interactive shells get ~/.local/bin and cargo on PATH; the entrypoint appends
+# the CARGO_* vars here.
 RUN printf 'export PATH=/home/%s/.local/bin:/home/%s/.cargo/bin:$PATH\n' "${USERNAME}" "${USERNAME}" > /etc/profile.d/devbox-path.sh
 
 # Non-interactive SSH (`ssh devbox cargo build`) gets PATH from /etc/environment
 # via pam_env, which runs after sshd reads ~/.ssh/environment and overrides it.
-# The shim and cargo have to be here or they are invisible to non-login shells.
+# cargo has to be here or it is invisible to non-login shells.
 RUN sed -i "s|^PATH=\"|PATH=\"/home/${USERNAME}/.local/bin:/home/${USERNAME}/.cargo/bin:|" /etc/environment
 
 COPY entrypoint.sh user-setup.sh /usr/local/bin/
