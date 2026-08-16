@@ -458,129 +458,42 @@
     <strong>No shared <code>CARGO_TARGET_DIR</code>.</strong> A single shared target dir made every
     cargo invocation in the box serialize on cargo's per-target-dir build lock —
     <em>"Blocking waiting for file lock on build directory"</em> — which reads as a hang under
-    agent/non-interactive runs. Each worktree gets its own <code>./target</code>; sccache is what
-    shares work between them, and it does so safely.
+    agent/non-interactive runs. Each worktree gets its own <code>./target</code>, and nothing is
+    shared between them beyond the crate registry.
   </div>
 </section>
 
 <!-- ── CARGO ────────────────────────────────────────────── -->
 <section>
-  <h2>Cargo: the shim, sccache, and mold</h2>
-  <p class="lede">sccache and <code>CARGO_INCREMENTAL</code> are mutually exclusive — sccache refuses
-  to run as a rustc wrapper when incremental is on. But their value is temporally disjoint, so the
-  shim at <code>~/.local/bin/cargo</code> picks one per worktree per phase.</p>
+  <h2>Cargo: mold, and sccache if you ask for it</h2>
+  <p class="lede">Builds are plain cargo: incremental on (cargo's own default), mold as the linker,
+  no rustc wrapper. Nothing in the environment reaches into the build anymore.</p>
 
-  <div class="grid g2">
-    <div class="panel">
-      <h3><span class="tag a">Cold</span> first build in a fresh worktree</h3>
-      <p class="muted" style="font-size:14px; margin:0 0 10px">sccache pays off exactly once — it warms
-      the whole dependency graph out of the global cache. Incremental would buy nothing here.</p>
-      <pre><code>env RUSTC_WRAPPER=sccache \
-    CARGO_INCREMENTAL=0 \
-    ~/.cargo/bin/cargo "$@"
-
-# on success:
-touch ./target/.sccache-warmed</code></pre>
-    </div>
-    <div class="panel">
-      <h3><span class="tag b">Warm</span> every build after</h3>
-      <p class="muted" style="font-size:14px; margin:0 0 10px">Deps now live in <code>./target</code>
-      and cargo's fingerprint never re-invokes rustc for them, so sccache is dead weight. Incremental
-      takes over for the edit-rebuild loop.</p>
-      <pre><code>env -u RUSTC_WRAPPER \
-    CARGO_INCREMENTAL=1 \
-    ~/.cargo/bin/cargo "$@"</code></pre>
-    </div>
+  <div class="callout">
+    <strong>sccache and <code>CARGO_INCREMENTAL</code> are mutually exclusive.</strong> sccache refuses
+    to run as a rustc wrapper when incremental is on — <em>"incremental compilation is
+    prohibited"</em> — and the incremental inner loop is worth more than cross-worktree dependency
+    reuse, so nothing wires sccache up by default. The binary is still installed and its cache
+    directory is still a volume, so opting in is per command:
+    <pre style="margin:10px 0 0"><code>RUSTC_WRAPPER=sccache CARGO_INCREMENTAL=0 cargo build</code></pre>
   </div>
 
-  <figure class="figure viz scroll" style="margin:16px 0 0">
-    <svg viewBox="0 0 1000 320" role="img"
-         aria-label="Decision flow: the cargo shim parses the subcommand, passes non-compiling ones through, and otherwise checks for a sentinel file in the target directory to choose between the sccache cold path and the incremental warm path.">
-      <defs>
-        <marker id="ah2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-          <path d="M0,0 L10,5 L0,10 z" fill="var(--dgm-muted)"/>
-        </marker>
-      </defs>
-
-      <rect class="s-box" x="8" y="118" width="132" height="58" rx="9"/>
-      <text class="s-t" x="20" y="142">cargo build</text>
-      <text class="s-t sm" x="20" y="160">~/.local/bin first</text>
-      <path class="s-l" d="M140,147 H170" marker-end="url(#ah2)"/>
-
-      <rect class="s-panel" x="176" y="106" width="170" height="82" rx="9"/>
-      <text class="s-t" x="188" y="128">shim: parse subcmd</text>
-      <text class="s-t sm" x="188" y="146">skips -v, +toolchain,</text>
-      <text class="s-t sm" x="188" y="161">and -Z/-C/--config values</text>
-      <text class="s-t sm" x="188" y="178">calls real cargo by path</text>
-
-      <path class="s-l" d="M261,188 V232" marker-end="url(#ah2)"/>
-      <rect class="s-box" x="176" y="232" width="170" height="56" rx="9"/>
-      <text class="s-t sm" x="188" y="253">fmt · add · tree · metadata</text>
-      <text class="s-t sm" x="188" y="271">exec real cargo, untouched</text>
-
-      <path class="s-l" d="M346,147 H360" marker-end="url(#ah2)"/>
-      <path d="M466,102 L576,147 L466,192 L356,147 Z" fill="var(--dgm-fill)" stroke="var(--dgm-line)"/>
-      <text class="s-t sm" x="466" y="143" text-anchor="middle">./target/</text>
-      <text class="s-t sm" x="466" y="158" text-anchor="middle">.sccache-warmed ?</text>
-
-      <path class="s-l" d="M527,125 L590,92" marker-end="url(#ah2)"/>
-      <text class="s-t sm" x="536" y="104">absent</text>
-      <path class="s-l" d="M527,169 L590,208" marker-end="url(#ah2)"/>
-      <text class="s-t sm" x="536" y="200">present</text>
-
-      <rect x="600" y="40" width="392" height="88" rx="10"
-            fill="var(--dgm-fill)" stroke="var(--accent)" stroke-opacity=".75"/>
-      <text class="s-t hd" x="616" y="62" fill="var(--accent)">COLD — first build in this worktree</text>
-      <text class="s-t" x="616" y="84">RUSTC_WRAPPER=sccache · CARGO_INCREMENTAL=0</text>
-      <text class="s-t sm" x="616" y="104">warms the dependency graph from the global sccache cache;</text>
-      <text class="s-t sm" x="616" y="119">incremental is impossible here — sccache refuses it</text>
-
-      <rect x="600" y="196" width="392" height="88" rx="10"
-            fill="var(--dgm-fill)" stroke="var(--accent2)" stroke-opacity=".75"/>
-      <text class="s-t hd" x="616" y="218" fill="var(--accent2)">WARM — every build after</text>
-      <text class="s-t" x="616" y="240">env -u RUSTC_WRAPPER · CARGO_INCREMENTAL=1</text>
-      <text class="s-t sm" x="616" y="260">deps live in ./target, never re-invoked — sccache is now</text>
-      <text class="s-t sm" x="616" y="275">dead weight; edits rebuild changed codegen units only</text>
-
-      <path class="s-l dash" d="M760,128 V190" marker-end="url(#ah2)"/>
-      <text class="s-t sm" x="772" y="144">on success: touch the sentinel</text>
-      <text class="s-t sm" x="772" y="159">one-way per worktree;</text>
-      <text class="s-t sm" x="772" y="174">cargo clean resets it</text>
-    </svg>
-    <figcaption>A failed cold build leaves no sentinel, so the next attempt retries cold. The flip is
-    one-directional by design: toggling incremental 0↔1 would thrash local-crate fingerprints on every
-    build.</figcaption>
-  </figure>
-
-  <div class="grid g2" style="margin-top:20px">
-    <div class="panel">
-      <h3>Knowing the sharp edges</h3>
-      <ul style="font-size:14px">
-        <li><strong>Warm with <code>cargo build</code>, not <code>cargo check</code>.</strong> A cold
-        <code>check</code> only produces dep <code>.rmeta</code>; the next <code>build</code> — now with
-        sccache off — would have to codegen every dep from scratch. <code>build</code> seeds both.</li>
-        <li><strong>One-time recompile at the flip.</strong> Turning incremental on changes local
-        crates' rustc flags and invalidates their fingerprint. Deps are unaffected — they're never
-        incremental.</li>
-        <li><strong>Concurrency.</strong> Two builds racing in the same worktree before the sentinel is
-        written invalidate each other's local fingerprints once. Wasteful, harmless.</li>
-      </ul>
-    </div>
-    <div class="panel">
-      <h3>Everything else in the build environment</h3>
-      <table>
-        <tr><td><code>-C link-arg=-fuse-ld=mold</code></td><td>mold as the linker for
-          aarch64-unknown-linux-gnu — installed from upstream releases, since 24.04 ships mold 2.30 from
-          Mar 2024</td></tr>
-        <tr><td><code>CARGO_PROFILE_DEV_DEBUG=0</code></td><td>No debuginfo in dev builds; the single
-          biggest cut to link time and target-dir size</td></tr>
-        <tr><td><code>CARGO_PROFILE_DEV_SPLIT_DEBUGINFO=off</code></td><td>Nothing to split once debug
-          is off</td></tr>
-        <tr><td><code>SCCACHE_CACHE_SIZE=40G</code></td><td>Global, shared by every worktree and every
-          clean build</td></tr>
-        <tr><td>cargo-registry volume</td><td>Downloaded crate sources, kept across rebuilds</td></tr>
-      </table>
-    </div>
+  <div class="panel" style="margin-top:20px">
+    <h3>The build environment</h3>
+    <table>
+      <tr><td><code>-C link-arg=-fuse-ld=mold</code></td><td>mold as the linker for
+        aarch64-unknown-linux-gnu — installed from upstream releases, since 24.04 ships mold 2.30 from
+        Mar 2024</td></tr>
+      <tr><td><code>CARGO_PROFILE_DEV_DEBUG=0</code></td><td>No debuginfo in dev builds; the single
+        biggest cut to link time and target-dir size</td></tr>
+      <tr><td><code>CARGO_PROFILE_DEV_SPLIT_DEBUGINFO=off</code></td><td>Nothing to split once debug
+        is off</td></tr>
+      <tr><td>cargo-registry volume</td><td>Downloaded crate sources, kept across rebuilds</td></tr>
+    </table>
+    <p class="muted" style="font-size:14px; margin:10px 0 0">Setting <code>RUSTC_WRAPPER</code> /
+    <code>SCCACHE_*</code> in <code>docker-compose.yml</code> or <code>.env</code> makes sccache global
+    again — they reach a session the same way every <code>CARGO_*</code> var does. With
+    <code>SCCACHE_CACHE_SIZE</code> unset the cache caps at sccache's 10G default.</p>
   </div>
 </section>
 
@@ -593,7 +506,7 @@ touch ./target/.sccache-warmed</code></pre>
       <tbody>
         <tr><td><code>workspace</code></td><td><code>~/workspace</code></td><td>Every clone, every worktree, every uncommitted change</td></tr>
         <tr><td><code>cargo-registry</code></td><td><code>~/.cargo/registry</code></td><td>Re-download every crate source from scratch</td></tr>
-        <tr><td><code>sccache</code></td><td><code>~/.cache/sccache</code></td><td>Every worktree's first build goes fully cold — the shared compilation cache is gone</td></tr>
+        <tr><td><code>sccache</code></td><td><code>~/.cache/sccache</code></td><td>Opt-in <code>RUSTC_WRAPPER=sccache</code> builds start from an empty cache after every rebuild</td></tr>
         <tr><td><code>claude-config</code></td><td><code>~/.claude</code></td><td>Claude Code login + settings. <code>~/.claude.json</code> is symlinked into it, so onboarding state and the per-project session index survive too</td></tr>
         <tr><td><code>vscode-server</code></td><td><code>~/.vscode-server</code></td><td>The VS Code server is re-downloaded on every rebuild</td></tr>
         <tr><td><code>orca</code>, <code>orca-relay</code>, <code>orca-remote</code></td><td><code>~/.orca*</code></td><td>Orca re-pushes its remote component and loses session state</td></tr>
@@ -625,10 +538,12 @@ docker logs -f devbox            # sshd + setup warnings</code></pre>
       <h3>Inside the box</h3>
       <pre><code>cd ~/workspace/&lt;repo&gt;
 git worktree add ../&lt;repo&gt;-&lt;name&gt; -b &lt;branch&gt;
-cargo build                      # cold once, then incremental
-cargo nextest run                # routed by the shim too
-sccache --show-stats
-cargo clean                      # drops the sentinel → next build cold</code></pre>
+cargo build                      # plain incremental build, mold linker
+cargo nextest run
+
+# opt into sccache for a cold build:
+RUSTC_WRAPPER=sccache CARGO_INCREMENTAL=0 cargo build
+sccache --show-stats</code></pre>
     </div>
   </div>
   <div class="callout b">
@@ -640,7 +555,7 @@ cargo clean                      # drops the sentinel → next build cold</code>
 
 <footer>
   Generated from <code>devbox@e6a22bb</code> — Dockerfile, docker-compose.yml, entrypoint.sh,
-  user-setup.sh, cargo-shim.sh.
+  user-setup.sh.
 </footer>
 
 </div>

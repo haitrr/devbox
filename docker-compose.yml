@@ -24,16 +24,14 @@ services:
       # A shared dir made every cargo invocation in the box serialize on cargo's
       # per-target-dir build lock ("Blocking waiting for file lock on build
       # directory"), which reads as a hang under non-interactive/agent runs.
-      # sccache (below) already shares compiled deps across projects safely.
-      # sccache caches individual crate compilations across projects and clean
-      # builds, shared globally so any worktree benefits. It refuses to run as a
-      # rustc wrapper when incremental is enabled ("incremental compilation is
-      # prohibited"), so CARGO_INCREMENTAL must stay 0 — the two are mutually
-      # exclusive. We keep sccache for cross-worktree dependency reuse.
-      RUSTC_WRAPPER: "sccache"
-      SCCACHE_DIR: "/home/dev/.cache/sccache"
-      SCCACHE_CACHE_SIZE: "40G"
-      CARGO_INCREMENTAL: "0"
+      #
+      # Nothing wires up sccache here. RUSTC_WRAPPER=sccache and CARGO_INCREMENTAL
+      # are mutually exclusive — sccache refuses to run as a rustc wrapper when
+      # incremental is on ("incremental compilation is prohibited") — and the
+      # incremental inner loop is worth more than cross-worktree dep reuse. The
+      # binary is still in the image and its cache volume is still mounted, so
+      # opting in is per-command: `RUSTC_WRAPPER=sccache CARGO_INCREMENTAL=0
+      # cargo build`. Setting either var here (or in .env) makes it global again.
       # Read from ./.env (Compose loads it automatically). gh picks GH_TOKEN up
       # with no `gh auth login` step. Empty default so a missing .env isn't fatal.
       GH_TOKEN: "${GH_TOKEN:-}"
@@ -67,6 +65,8 @@ services:
       - ${CLAUDE_BOX_MD:-/dev/null}:/tmp/CLAUDE_box.md:ro
       - workspace:/home/dev/workspace
       - cargo-registry:/home/dev/.cargo/registry
+      # sccache's default cache dir on Linux, kept on a volume so an opt-in
+      # RUSTC_WRAPPER=sccache build still has a warm cache after a rebuild.
       - sccache:/home/dev/.cache/sccache
       # Keeps the Claude Code login and settings across rebuilds.
       - claude-config:/home/dev/.claude
