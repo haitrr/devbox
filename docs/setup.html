@@ -359,7 +359,8 @@
       <h3>Three ways PATH/env reach a session</h3>
       <table>
         <tr><td><strong>Interactive login</strong><br><span class="muted">ssh devbox</span></td>
-            <td><code>/etc/profile.d/*.sh</code> + <code>~/.bashrc</code> → <code>~/.config/devbox-env.sh</code></td></tr>
+            <td><code>/etc/profile.d/*.sh</code> + <code>~/.bashrc</code> → <code>~/.config/devbox-env.sh</code>,
+            <code>/etc/devbox-alias.sh</code></td></tr>
         <tr><td><strong>Non-interactive</strong><br><span class="muted">ssh devbox cargo build</span></td>
             <td><code>~/.ssh/environment</code> (needs <code>PermitUserEnvironment yes</code>) for the vars;
             PATH from <code>/etc/environment</code>, because pam_env runs <em>after</em> and would override it</td></tr>

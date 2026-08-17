@@ -180,7 +180,7 @@ done by the dev user itself, so no ownership ever has to be repaired.
 
 | Session | Where it gets its environment |
 | --- | --- |
-| Interactive login (`ssh devbox`) | `/etc/profile.d/*.sh` plus `~/.bashrc`, which sources `~/.config/devbox-env.sh` |
+| Interactive login (`ssh devbox`) | `/etc/profile.d/*.sh` plus `~/.bashrc`, which sources `~/.config/devbox-env.sh` and `/etc/devbox-alias.sh` |
 | Non-interactive (`ssh devbox cargo build`) | `~/.ssh/environment` (needs `PermitUserEnvironment yes`) for the vars; PATH from `/etc/environment`, because pam_env runs *after* sshd reads the environment file and would override it |
 | Agents / Orca | Same as non-interactive — which is why the PATH lives in `/etc/environment` and not in a shell rc |
 
