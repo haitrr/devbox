@@ -320,6 +320,19 @@ RUN mkdir -p /home/${USERNAME}/.local/bin \
 # the CARGO_* vars here.
 RUN printf 'export PATH=/home/%s/.local/bin:/home/%s/.cargo/bin:$PATH\n' "${USERNAME}" "${USERNAME}" > /etc/profile.d/devbox-path.sh
 
+# Shell aliases, from the .alias file next to this Dockerfile. The file lands in
+# /etc so it is readable by any account, but the source line goes at the end of
+# the dev user's ~/.bashrc rather than in /etc/profile.d or /etc/bash.bashrc:
+# profile.d only runs for login shells, so `docker exec -it devbox bash` and each
+# new tmux pane would miss it, and /etc/bash.bashrc runs *before* ~/.bashrc, so
+# Ubuntu's skeleton definitions of ll/la would quietly win over these. ~/.bashrc
+# is read by every interactive bash — login (via ~/.profile) and not — which is
+# the whole set of shells where aliases do anything at all.
+COPY .alias /etc/devbox-alias.sh
+RUN chmod 0644 /etc/devbox-alias.sh \
+    && printf '\n# devbox aliases\nif [ -f /etc/devbox-alias.sh ]; then . /etc/devbox-alias.sh; fi\n' \
+       >> /home/${USERNAME}/.bashrc
+
 # Non-interactive SSH (`ssh devbox cargo build`) gets PATH from /etc/environment
 # via pam_env, which runs after sshd reads ~/.ssh/environment and overrides it.
 # cargo has to be here or it is invisible to non-login shells.
