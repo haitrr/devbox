@@ -71,10 +71,13 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-ins
 
 # Node LTS from NodeSource, plus the Next.js CLI for scaffolding. Corepack ships
 # with Node and manages pnpm/yarn per-project via the packageManager field.
+# Claude Code is deliberately NOT here: a root `npm install -g` puts it in
+# root-owned /usr/lib/node_modules, and its self-update then fails for the dev
+# user with EACCES on every start. It is installed as that user further down.
 RUN curl -fsSL https://deb.nodesource.com/setup_${NODE_MAJOR}.x | bash - \
     && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends nodejs \
     && corepack enable \
-    && npm install -g next @anthropic-ai/claude-code \
+    && npm install -g next \
     && rm -rf /var/lib/apt/lists/*
 
 # sccache — static musl build from upstream releases (not in the Ubuntu archive).
@@ -306,16 +309,40 @@ RUN mkdir -p /run/sshd /etc/ssh/host-keys \
         'HostKey /etc/ssh/host-keys/ssh_host_rsa_key' \
         > /etc/ssh/sshd_config.d/devbox.conf
 
-USER ${USERNAME}
-RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
-    | sh -s -- -y --no-modify-path --profile minimal --component clippy --component rustfmt
-
-USER root
 # ~/.local/bin is where `pip install --user` and uv put console scripts. Created
 # here so it exists (and is owned by the user) before anything writes into it.
 RUN mkdir -p /home/${USERNAME}/.local/bin \
     && chown -R ${USERNAME}:${USERNAME} /home/${USERNAME}/.local
 
+USER ${USERNAME}
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
+    | sh -s -- -y --no-modify-path --profile minimal --component clippy --component rustfmt
+
+# Claude Code, via Anthropic's native installer and as the dev user rather than
+# `npm install -g` as root. The updater replaces the whole install in place, so
+# it has to own the directory it lives in: installed by root it lands in
+# /usr/lib/node_modules and every auto-update dies with EACCES, telling the user
+# to re-run as root — on each start, since the failed update is retried forever.
+# The installer is HOME-relative (~/.local/share/claude/versions/<v>, fronted by
+# a ~/.local/bin/claude symlink), so running it here as ${USERNAME} makes the
+# whole tree that user's and self-update just works. HOME is passed explicitly
+# rather than relied on from the passwd entry, so a wrong one fails the build
+# here instead of silently installing into /.
+#
+# Unpinned on purpose, unlike the ARG-versioned tools above: Claude Code updates
+# itself continuously, so a pin would be stale within days and only fixes which
+# version the box *starts* from. ~/.local is not on a volume, so a rebuilt
+# container starts from this baked version again and re-updates on first run.
+#
+# PATH is set for the installer's benefit only: it checks whether its symlink is
+# reachable and otherwise ends on a "not in your PATH" warning that is wrong here
+# — /etc/environment and profile.d/devbox-path.sh both put ~/.local/bin first for
+# real sessions, but neither is consulted by a build-time RUN.
+RUN HOME=/home/${USERNAME} PATH=/home/${USERNAME}/.local/bin:${PATH} \
+        bash -c 'curl -fsSL https://claude.ai/install.sh | bash' \
+    && /home/${USERNAME}/.local/bin/claude --version
+
+USER root
 # Interactive shells get ~/.local/bin and cargo on PATH; the entrypoint appends
 # the CARGO_* vars here.
 RUN printf 'export PATH=/home/%s/.local/bin:/home/%s/.cargo/bin:$PATH\n' "${USERNAME}" "${USERNAME}" > /etc/profile.d/devbox-path.sh
