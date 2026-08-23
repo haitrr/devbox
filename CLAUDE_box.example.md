@@ -20,8 +20,6 @@ it stays invisible if you leave it in place.
 
 ## Environment
 
-- This is a devbox container reached over SSH. There is no display and no
-  browser — never try to verify anything visually.
 - `sudo` needs the password from `SUDO_PASSWORD`, and is disabled outright when
   that is unset. For root work, tell me to run `docker exec -u root devbox ...`
   from the host rather than trying to escalate in here.
