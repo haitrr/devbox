@@ -169,6 +169,25 @@ RUN mkdir -p -m 755 /etc/apt/keyrings \
     && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends gh \
     && rm -rf /var/lib/apt/lists/*
 
+# Docker CLI + compose plugin, from Docker's own apt repo (the Ubuntu archive
+# ships an ancient, differently-packaged docker.io). No dockerd here: the
+# daemon stays on the host, reached over /var/run/docker.sock, which
+# docker-compose.yml bind-mounts in. That socket is root:docker on the host
+# with a GID that varies per install, so entrypoint.sh aligns a "docker" group
+# to it and adds the dev user at every start rather than baking a GID here.
+RUN mkdir -p -m 755 /etc/apt/keyrings \
+    && curl -fsSL https://download.docker.com/linux/ubuntu/gpg \
+         -o /etc/apt/keyrings/docker.asc \
+    && chmod a+r /etc/apt/keyrings/docker.asc \
+    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "${VERSION_CODENAME}") stable" \
+         > /etc/apt/sources.list.d/docker.list \
+    && apt-get update \
+    && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+        docker-ce-cli \
+        docker-compose-plugin \
+    && rm -rf /var/lib/apt/lists/* \
+    && docker --version && docker compose version
+
 # code-review-graph — a Tree-sitter/MCP tool that maps a repo's structure so AI
 # assistants read only the blast radius of a change instead of the whole corpus.
 # Installed off its own toolchain: uv (Astral's static binary, matching this file's
