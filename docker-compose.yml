@@ -54,6 +54,11 @@ services:
       GITHUB_KNOWN_HOSTS: "${GITHUB_KNOWN_HOSTS:-github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl}"
     volumes:
       - ${HOME}/.ssh/id_ed25519.pub:/tmp/host_key.pub:ro
+      # Host's Docker daemon, reached from the box's docker CLI. entrypoint.sh
+      # aligns a "docker" group to this socket's GID and adds the dev user to
+      # it on every start (see comment there) — no daemon runs inside the box,
+      # containers started from in here are actually created on the host.
+      - /var/run/docker.sock:/var/run/docker.sock
       # Optional global instructions for Claude Code, copied to
       # ~/.claude/CLAUDE.md by user-setup.sh on every start. The source is an
       # .env knob rather than a literal ./CLAUDE_box.md because Docker creates a
