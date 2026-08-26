@@ -18,6 +18,9 @@ ARG NEXTEST_VERSION=0.9.140
 ARG CARGO_DENY_VERSION=0.20.2
 ARG CARGO_EXPAND_VERSION=1.0.124
 ARG CARGO_MACHETE_VERSION=0.9.2
+# cargo-target-gc publishes no crates.io release and no binaries, so it is built
+# from source as the dev user below. Pinned by commit: the repo has no tags.
+ARG CARGO_TARGET_GC_REV=66e18f4998892f66458233767eae6a5611f9ecec
 # uv (Astral's Python package manager, a static binary) and the code-review-graph
 # CLI it installs. Bump either independently.
 ARG UV_VERSION=0.12.1
@@ -374,6 +377,20 @@ RUN mkdir -p /home/${USERNAME}/.local/bin \
 USER ${USERNAME}
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
     | sh -s -- -y --no-modify-path --profile minimal --component clippy --component rustfmt
+
+# cargo-target-gc: prunes a workspace's target/ by rebuild cost instead of
+# cargo clean's all-or-nothing. Unlike the subcommands installed via binstall
+# above, it ships no prebuilt binaries, so this compiles it — as ${USERNAME},
+# who is the only user with a rustc. It lands in ~/.cargo/bin, already on PATH.
+# --locked uses the repo's Cargo.lock so the build doesn't drift with upstream
+# dependency releases. The registry cache it fills here is discarded: the
+# ~/.cargo/registry volume shadows it at runtime.
+ARG CARGO_TARGET_GC_REV
+RUN . /home/${USERNAME}/.cargo/env \
+    && cargo install --locked --git https://github.com/haitrr/cargo-target-gc \
+         --rev "${CARGO_TARGET_GC_REV}" cargo-target-gc \
+    && rm -rf /home/${USERNAME}/.cargo/registry/* /home/${USERNAME}/.cargo/git \
+    && cargo-target-gc --version
 
 # Claude Code, via Anthropic's native installer and as the dev user rather than
 # `npm install -g` as root. The updater replaces the whole install in place, so

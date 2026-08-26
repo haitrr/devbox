@@ -64,14 +64,18 @@ Beyond the base toolchain (Rust via rustup, Node LTS, `gh`, `sccache`, `mold`,
 | Build / bench | `just`, `hyperfine` |
 | Lint | `shellcheck`, `shfmt` |
 | Security | `trivy`, `cargo-deny` |
-| Cargo | `cargo-nextest`, `cargo-expand`, `cargo-machete` |
+| Cargo | `cargo-nextest`, `cargo-expand`, `cargo-machete`, `cargo-target-gc` |
 | Python / AI | `python3` + `pip` (3.12, `python`/`pip` aliases on PATH), `uv` + `uvx` (Astral), `code-review-graph` (Tree-sitter/MCP review graph) |
 | Browser tests | `playwright` (`@playwright/test`) with Chromium and its runtime libraries prebuilt into the image |
 | Agents | `orca` (Orca CLI, installed from the Linux desktop package — see [Orca CLI](#orca-cli)) |
 
 Versions are pinned as `ARG`s at the top of the `Dockerfile` for anything not
 taken from the Ubuntu archive — except Claude Code, which updates itself (see
-below). `cargo expand` additionally needs a nightly rustc — run
+below). `cargo-target-gc` ([haitrr/cargo-target-gc](https://github.com/haitrr/cargo-target-gc))
+is the one tool compiled from source rather than fetched as a binary — it
+publishes neither, so it is pinned by commit and built during the image build;
+run `cargo target-gc` in a workspace to prune `target/` by rebuild cost instead
+of `cargo clean`'s all-or-nothing. `cargo expand` additionally needs a nightly rustc — run
 `rustup toolchain install nightly --profile minimal` inside the box.
 `pip` installs globally: `/etc/pip.conf` sets `break-system-packages`, so Ubuntu's
 PEP 668 guard won't refuse a bare `pip install`. Use a venv or `uv` if you'd rather
