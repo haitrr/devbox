@@ -65,7 +65,7 @@ Beyond the base toolchain (Rust via rustup, Node LTS, `gh`, `sccache`, `mold`,
 | Lint | `shellcheck`, `shfmt` |
 | Security | `trivy`, `cargo-deny` |
 | Cargo | `cargo-nextest`, `cargo-expand`, `cargo-machete`, `cargo-target-gc` |
-| Python / AI | `python3` + `pip` (3.12, `python`/`pip` aliases on PATH), `uv` + `uvx` (Astral), `code-review-graph` (Tree-sitter/MCP review graph) |
+| Python / AI | `python3` + `pip` (3.12, `python`/`pip` aliases on PATH), `uv` + `uvx` (Astral), `code-review-graph` (Tree-sitter/MCP review graph), `serena` (semantic-code MCP server — see [Serena](#serena)) |
 | Browser tests | `playwright` (`@playwright/test`) with Chromium and its runtime libraries prebuilt into the image |
 | Agents | `orca` (Orca CLI, installed from the Linux desktop package — see [Orca CLI](#orca-cli)) |
 
@@ -92,6 +92,60 @@ would only fix which version the box *starts* from. `~/.local` is not on a
 volume, so a rebuild returns to the version baked into the image and it updates
 again on first run; check with `claude --version` and
 `cat ~/.claude/.last-update-result.json`.
+
+## Serena
+
+[Serena](https://github.com/oraios/serena) is an MCP server that gives an agent
+language-server-backed semantic tools — find symbol, find references, find
+implementations, rename, replace symbol body — instead of grep and line-number
+edits. It is installed in the image and Claude Code is wired to it on every
+container start, so there is nothing to run: open `claude` in any clone under
+`~/workspace` and `/mcp` shows `serena` connected.
+
+The wiring, all done by `user-setup.sh` because both files it touches live on
+the `.claude` volume:
+
+- **`serena init`** on first start, writing `~/.serena/serena_config.yml`. Own
+  volume, so project memories and downloaded language servers survive a rebuild.
+- **A user-scoped MCP server entry** in `~/.claude.json`, launching
+  `serena start-mcp-server --context=claude-code --project-from-cwd`. Written as
+  JSON rather than by running `claude mcp add` (or `serena setup claude-code`,
+  which wraps it), because that command refuses once the entry exists and this
+  runs on every start. `--project-from-cwd` makes the server adopt whatever
+  directory Claude Code was launched in, so the one entry covers every clone
+  without a per-project config or an explicit `activate_project` call.
+- **Serena's four reminder hooks** in `~/.claude/settings.json`. Upstream
+  strongly recommends them, and they are the difference between the tools being
+  available and being *used*: Claude Code loads MCP tools lazily and is heavily
+  biased toward its built-ins, so without them the agent tends to never load
+  Serena's tools at all, or to drift back to grep partway through a long
+  session. `activate` prompts it to activate the project at session start,
+  `remind` nudges it back after a run of built-in reads and greps,
+  `auto-approve` clears Serena's editing tools when the session is already in a
+  permissive permission mode, and `cleanup` drops the hooks' session state.
+- **`MCP_TIMEOUT=60000`**, up from Claude Code's 30s default. Serena spends a few
+  seconds loading its language-server layer and more on a project it has not
+  indexed, close enough to the default to lose the server on a cold start.
+
+Each of these is idempotent and merges rather than overwrites, so a hook or
+setting you add by hand is left alone.
+
+Language servers are per project: Serena writes a `.serena/project.yml` into the
+clone the first time it activates it, listing the languages it detected there.
+It detects from the files present at that moment — activate an empty directory
+and the list is empty and stays that way, so delete that file and reconnect if a
+project's languages were added after the first run. Rust uses the
+`rust-analyzer` from the rustup toolchain already in the image; other languages
+are downloaded on first use into `~/.serena/language_servers`.
+
+Upstream also publishes a system-prompt override that counteracts Claude Code's
+bias toward its built-in tools more forcefully than the hooks can. It is not
+installed, since it replaces the whole system prompt; run it per session if you
+want it:
+
+```sh
+claude --system-prompt "$(serena prompts print-cc-system-prompt-override)"
+```
 
 Playwright's browsers live in `/opt/playwright`, not the usual
 `~/.cache/ms-playwright`, and `PLAYWRIGHT_BROWSERS_PATH` points every playwright
@@ -345,6 +399,7 @@ The build environment:
 | `cargo-registry` | `~/.cargo/registry` | Re-download every crate source from scratch |
 | `sccache` | `~/.cache/sccache` | Opt-in `RUSTC_WRAPPER=sccache` builds start from an empty cache after every rebuild |
 | `claude-config` | `~/.claude` | Claude Code login and settings. `~/.claude.json` is symlinked into it, so onboarding state and the per-project session index survive too |
+| `serena` | `~/.serena` | Serena's config and project memories, and the language servers it downloads on first use per language |
 | `vscode-server` | `~/.vscode-server` | The VS Code server is re-downloaded on every rebuild |
 | `orca`, `orca-relay`, `orca-remote` | `~/.orca*` | Orca re-pushes its remote component and loses session state |
 | `ssh-host-keys` | `/etc/ssh/host-keys` | Box looks like a new machine; strict clients refuse to connect |

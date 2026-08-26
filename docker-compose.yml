@@ -75,6 +75,10 @@ services:
       - sccache:/home/dev/.cache/sccache
       # Keeps the Claude Code login and settings across rebuilds.
       - claude-config:/home/dev/.claude
+      # Serena's config, project memories and the language servers it downloads
+      # on first use per language — hundreds of MB once a few languages are in
+      # play, and re-fetched from scratch without this.
+      - serena:/home/dev/.serena
       # ~750MB of VS Code server; without this every rebuild re-downloads it.
       - vscode-server:/home/dev/.vscode-server
       # Orca (onorca.dev) pushes a ~65MB remote component in over SSH, same
@@ -90,6 +94,7 @@ volumes:
   cargo-registry:
   sccache:
   claude-config:
+  serena:
   vscode-server:
   orca:
   orca-relay:

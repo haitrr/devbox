@@ -25,6 +25,9 @@ ARG CARGO_TARGET_GC_REV=66e18f4998892f66458233767eae6a5611f9ecec
 # CLI it installs. Bump either independently.
 ARG UV_VERSION=0.12.1
 ARG CRG_VERSION=2.3.7
+# Serena (oraios/serena) — the semantic-code MCP server Claude Code is wired to
+# below. Also a uv tool, but on its own interpreter; see the RUN block.
+ARG SERENA_VERSION=1.7.0
 # Playwright. The browser builds are keyed to the release that downloaded them,
 # so bumping this re-downloads them on the next build. Chromium only by default:
 # adding firefox and webkit roughly triples the layer.
@@ -222,9 +225,28 @@ RUN arch="$(dpkg --print-architecture)" \
     && chmod -R a+rX /opt/uv \
     && code-review-graph --version
 
+# Serena — an MCP server giving an agent language-server-backed semantic tools
+# (find symbol, find references, rename, replace symbol body) instead of grep and
+# line-number edits. Claude Code is pointed at it by user-setup.sh on every start.
+# Same /opt/uv toolchain as code-review-graph above, but on Python 3.13 rather
+# than reusing that block's 3.12: upstream installs with `-p 3.13`, and a second
+# uv-managed interpreter (~50MB) is cheap next to running the tool off a version
+# its authors do not test. `serena` and `serena-hooks` land on PATH; both are
+# needed — Claude Code launches the server with the first and the reminder hooks
+# with the second. The state dir it writes (~/.serena) is on a volume, so no
+# `serena init` here: user-setup.sh runs it inside the box on first start.
+RUN UV_TOOL_DIR=/opt/uv/tools \
+       UV_TOOL_BIN_DIR=/usr/local/bin \
+       UV_PYTHON_INSTALL_DIR=/opt/uv/python \
+       UV_PYTHON_PREFERENCE=only-managed \
+       uv tool install --python 3.13 "serena-agent==${SERENA_VERSION}" \
+    && chmod -R a+rX /opt/uv \
+    && serena --version && serena-hooks --help >/dev/null
+
 # Python + pip. The base image ships no interpreter at all — the only python in
-# here is the one uv hides under /opt/uv for code-review-graph's venv, which is an
-# implementation detail of that tool, not a runtime — so shebangs, `python3` and
+# here are the ones uv hides under /opt/uv for the code-review-graph and Serena
+# venvs, implementation details of those tools rather than a runtime — so
+# shebangs, `python3` and
 # `pip install` all miss. Taken from the Ubuntu archive rather than given the
 # upstream-binary treatment the rest of this file gives lagging tools: 24.04 is on
 # 3.12 and lands at /usr/bin/python3, which is where everything expects it.
@@ -338,6 +360,7 @@ RUN mkdir -p \
         /home/${USERNAME}/.orca \
         /home/${USERNAME}/.orca-relay \
         /home/${USERNAME}/.orca-remote \
+        /home/${USERNAME}/.serena \
         /home/${USERNAME}/.cargo/registry \
         /home/${USERNAME}/.cache/cargo-target \
         /home/${USERNAME}/.cache/sccache \
@@ -438,6 +461,14 @@ RUN chmod 0644 /etc/devbox-alias.sh \
 # via pam_env, which runs after sshd reads ~/.ssh/environment and overrides it.
 # cargo has to be here or it is invisible to non-login shells.
 RUN sed -i "s|^PATH=\"|PATH=\"/home/${USERNAME}/.local/bin:/home/${USERNAME}/.cargo/bin:|" /etc/environment
+
+# Claude Code gives an MCP server 30s to come up by default. Serena spends a few
+# of those loading its language-server layer, and more on the first run in a
+# project it has not indexed, so the default is close enough to the edge to lose
+# the server on a cold start. Set for `docker exec` (ENV) and for SSH sessions
+# (/etc/environment), which inherit nothing from the daemon.
+ENV MCP_TIMEOUT=60000
+RUN echo 'MCP_TIMEOUT=60000' >> /etc/environment
 
 COPY entrypoint.sh user-setup.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/entrypoint.sh /usr/local/bin/user-setup.sh

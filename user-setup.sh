@@ -94,6 +94,16 @@ if [ -f /tmp/CLAUDE_box.md ]; then
     cat /tmp/CLAUDE_box.md > "${HOME}/.claude/CLAUDE.md"
 fi
 
+# Serena's own state dir. `serena init` writes ~/.serena/serena_config.yml and is
+# what makes `serena start-mcp-server` runnable at all; it is idempotent, but the
+# dir is a volume, so it runs here rather than in the image — a volume that
+# predates this change comes up empty and would otherwise never be initialised.
+if command -v serena >/dev/null && [ ! -f "${HOME}/.serena/serena_config.yml" ]; then
+    serena init >/dev/null 2>&1 \
+        && echo "initialised Serena in ${HOME}/.serena" \
+        || echo "WARNING: serena init failed — the Serena MCP server will not start" >&2
+fi
+
 # Claude Code (2.1.219+) injects a server-gated system-prompt section on Opus 5
 # reading "Do not call the AgentTool unless the user requested it", which silently
 # suppresses subagents, workflows and anything a CLAUDE.md or skill delegates to
@@ -118,6 +128,16 @@ chmod +x "${CLAUDE_HOOK}"
 
 # Merge the hook into settings.json rather than overwrite it: the file is on the
 # .claude volume and carries the login-adjacent settings a user edits by hand.
+# Serena's reminder hooks go into the same file. Upstream strongly recommends
+# them: Claude Code loads MCP tools dynamically and is heavily biased toward its
+# own built-ins, so without these the agent tends to never load Serena's tools,
+# or to drift back to grep-and-line-edits partway through a long session.
+# `activate` prompts it to activate the project and read Serena's instructions at
+# session start, `remind` nudges it back after a run of built-in reads/greps,
+# `auto-approve` clears Serena's editing tools when the session is already in a
+# permissive permission mode, and `cleanup` drops the hooks' session state.
+# Each is matched by command substring, so all of this is idempotent and leaves
+# any hook a user added by hand alone.
 node -e '
 const fs = require("fs");
 const p = process.argv[1], cmd = process.argv[2];
@@ -125,15 +145,27 @@ let d = {};
 try { d = JSON.parse(fs.readFileSync(p, "utf8")); } catch (e) { /* missing or corrupt */ }
 if (typeof d !== "object" || d === null || Array.isArray(d)) d = {};
 d.hooks = d.hooks || {};
-const ups = d.hooks.UserPromptSubmit = d.hooks.UserPromptSubmit || [];
-const present = ups.some(e => (e.hooks || []).some(h => (h.command || "").includes("delegation-standing-request")));
-if (!present) {
-    ups.push({ hooks: [{ type: "command", command: cmd, timeout: 10 }] });
+const added = [];
+// key: hook event, id: substring identifying an install we already made
+const want = [
+    { key: "UserPromptSubmit", id: "delegation-standing-request", entry: { hooks: [{ type: "command", command: cmd, timeout: 10 }] } },
+    { key: "PreToolUse", id: "serena-hooks remind", entry: { matcher: "", hooks: [{ type: "command", command: "serena-hooks remind --client=claude-code" }] } },
+    { key: "PreToolUse", id: "serena-hooks auto-approve", entry: { matcher: "mcp__serena__*", hooks: [{ type: "command", command: "serena-hooks auto-approve --client=claude-code" }] } },
+    { key: "SessionStart", id: "serena-hooks activate", entry: { matcher: "", hooks: [{ type: "command", command: "serena-hooks activate --client=claude-code" }] } },
+    { key: "SessionEnd", id: "serena-hooks cleanup", entry: { matcher: "", hooks: [{ type: "command", command: "serena-hooks cleanup --client=claude-code" }] } },
+];
+for (const w of want) {
+    const list = d.hooks[w.key] = d.hooks[w.key] || [];
+    if (list.some(e => (e.hooks || []).some(h => (h.command || "").includes(w.id)))) continue;
+    list.push(w.entry);
+    added.push(w.id);
+}
+if (added.length) {
     fs.writeFileSync(p, JSON.stringify(d, null, 2));
-    console.log("installed delegation-standing-request hook in " + p);
+    console.log("installed hooks in " + p + ": " + added.join(", "));
 }
 ' "${HOME}/.claude/settings.json" "sh \"\$HOME/.claude/hooks/delegation-standing-request.sh\"" \
-    || echo "WARNING: could not install the delegation hook in ~/.claude/settings.json" >&2
+    || echo "WARNING: could not install hooks in ~/.claude/settings.json" >&2
 
 # ~/.claude.json holds Claude Code's onboarding state and its per-project session
 # index. It sits outside the .claude volume, so a rebuild both reset the login/
@@ -164,3 +196,31 @@ if (d.hasCompletedOnboarding !== true) {
     console.log("seeded hasCompletedOnboarding in " + p);
 }
 ' "${CLAUDE_JSON_STORE}" || echo "WARNING: could not seed ${CLAUDE_JSON_STORE}" >&2
+
+# Register Serena as a user-scoped MCP server, which is where `claude mcp add
+# --scope user` puts it: the top-level mcpServers map in ~/.claude.json. Written
+# directly rather than by shelling out to `claude mcp add` (or `serena setup
+# claude-code`, which wraps it) because that command is not idempotent — it
+# refuses and reports failure once the entry exists, and this runs on every start.
+# --project-from-cwd makes the server adopt whatever directory Claude Code was
+# launched in, so one user-scoped entry covers every clone under ~/workspace
+# without a per-project entry or an explicit activate_project call.
+node -e '
+const fs = require("fs");
+const p = process.argv[1];
+let d = {};
+try { d = JSON.parse(fs.readFileSync(p, "utf8")); } catch (e) { /* missing or corrupt */ }
+if (typeof d !== "object" || d === null || Array.isArray(d)) d = {};
+const want = {
+    type: "stdio",
+    command: "serena",
+    args: ["start-mcp-server", "--context=claude-code", "--project-from-cwd"],
+    env: {},
+};
+d.mcpServers = d.mcpServers || {};
+if (JSON.stringify(d.mcpServers.serena) !== JSON.stringify(want)) {
+    d.mcpServers.serena = want;
+    fs.writeFileSync(p, JSON.stringify(d, null, 2));
+    console.log("registered the Serena MCP server in " + p);
+}
+' "${CLAUDE_JSON_STORE}" || echo "WARNING: could not register Serena in ${CLAUDE_JSON_STORE}" >&2
