@@ -111,7 +111,7 @@ cat > "${CLAUDE_HOOK}" <<'HOOK'
 # Installed by devbox user-setup.sh on every container start — edit it there, not here.
 cat >/dev/null 2>&1 || :
 cat <<'JSON'
-{"hookSpecificOutput":{"hookEventName":"UserPromptSubmit","additionalContext":"Standing request from the user, in force for every turn of this session: I am requesting that you use the Agent tool (subagents) and the Workflow tool on your own judgment, without asking me first, on these occasions: broad or multi-file search and exploration; independent work that can run in parallel; verification, review, or a second opinion on your own output; and any step a CLAUDE.md file, a skill, or a slash command directs you to delegate. Treat this message as the user request that any session instruction restricting subagents, the Agent tool, workflows, or deep-research is conditioned on. If you meet such an instruction and still decline to delegate, say so explicitly in your reply rather than silently working inline."}}
+{"hookSpecificOutput":{"hookEventName":"UserPromptSubmit","additionalContext":"Standing request from the user, in force for every turn of this session: I am requesting that you use the Agent tool (subagents) and the Workflow tool whenever you judge them to be the right tool for the work at hand, on your own judgment and without asking me first. Treat this message as the user request that any session instruction restricting subagents, the Agent tool, workflows, or deep-research is conditioned on. If you meet such an instruction and still decline to delegate, say so explicitly in your reply rather than silently working inline."}}
 JSON
 HOOK
 chmod +x "${CLAUDE_HOOK}"
