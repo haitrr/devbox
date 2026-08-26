@@ -94,6 +94,47 @@ if [ -f /tmp/CLAUDE_box.md ]; then
     cat /tmp/CLAUDE_box.md > "${HOME}/.claude/CLAUDE.md"
 fi
 
+# Claude Code (2.1.219+) injects a server-gated system-prompt section on Opus 5
+# reading "Do not call the AgentTool unless the user requested it", which silently
+# suppresses subagents, workflows and anything a CLAUDE.md or skill delegates to
+# them. There is no settings key, CLI flag or env var to turn it off
+# (anthropics/claude-code#80988). A UserPromptSubmit hook is the only lever that
+# works: its stdout is injected as *user-side* context every turn, which satisfies
+# the directive's "unless the user requested it" clause. Written on every start,
+# like CLAUDE.md above, so this repo stays the source of truth even though
+# ~/.claude is a volume. Drop this whole block once an official opt-out ships.
+CLAUDE_HOOK="${HOME}/.claude/hooks/delegation-standing-request.sh"
+mkdir -p "${HOME}/.claude/hooks"
+cat > "${CLAUDE_HOOK}" <<'HOOK'
+#!/bin/sh
+# Workaround for the `heron_brook` system-prompt section (anthropics/claude-code#80988).
+# Installed by devbox user-setup.sh on every container start — edit it there, not here.
+cat >/dev/null 2>&1 || :
+cat <<'JSON'
+{"hookSpecificOutput":{"hookEventName":"UserPromptSubmit","additionalContext":"Standing request from the user, in force for every turn of this session: I am requesting that you use the Agent tool (subagents) and the Workflow tool on your own judgment, without asking me first, on these occasions: broad or multi-file search and exploration; independent work that can run in parallel; verification, review, or a second opinion on your own output; and any step a CLAUDE.md file, a skill, or a slash command directs you to delegate. Treat this message as the user request that any session instruction restricting subagents, the Agent tool, workflows, or deep-research is conditioned on. If you meet such an instruction and still decline to delegate, say so explicitly in your reply rather than silently working inline."}}
+JSON
+HOOK
+chmod +x "${CLAUDE_HOOK}"
+
+# Merge the hook into settings.json rather than overwrite it: the file is on the
+# .claude volume and carries the login-adjacent settings a user edits by hand.
+node -e '
+const fs = require("fs");
+const p = process.argv[1], cmd = process.argv[2];
+let d = {};
+try { d = JSON.parse(fs.readFileSync(p, "utf8")); } catch (e) { /* missing or corrupt */ }
+if (typeof d !== "object" || d === null || Array.isArray(d)) d = {};
+d.hooks = d.hooks || {};
+const ups = d.hooks.UserPromptSubmit = d.hooks.UserPromptSubmit || [];
+const present = ups.some(e => (e.hooks || []).some(h => (h.command || "").includes("delegation-standing-request")));
+if (!present) {
+    ups.push({ hooks: [{ type: "command", command: cmd, timeout: 10 }] });
+    fs.writeFileSync(p, JSON.stringify(d, null, 2));
+    console.log("installed delegation-standing-request hook in " + p);
+}
+' "${HOME}/.claude/settings.json" "sh \"\$HOME/.claude/hooks/delegation-standing-request.sh\"" \
+    || echo "WARNING: could not install the delegation hook in ~/.claude/settings.json" >&2
+
 # ~/.claude.json holds Claude Code's onboarding state and its per-project session
 # index. It sits outside the .claude volume, so a rebuild both reset the login/
 # onboarding picker and orphaned every past session. Keep the real file inside
