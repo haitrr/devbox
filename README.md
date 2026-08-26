@@ -70,11 +70,24 @@ Beyond the base toolchain (Rust via rustup, Node LTS, `gh`, `sccache`, `mold`,
 | Agents | `orca` (Orca CLI, installed from the Linux desktop package — see [Orca CLI](#orca-cli)) |
 
 Versions are pinned as `ARG`s at the top of the `Dockerfile` for anything not
-taken from the Ubuntu archive. `cargo expand` additionally needs a nightly
-rustc — run `rustup toolchain install nightly --profile minimal` inside the box.
+taken from the Ubuntu archive — except Claude Code, which updates itself (see
+below). `cargo expand` additionally needs a nightly rustc — run
+`rustup toolchain install nightly --profile minimal` inside the box.
 `pip` installs globally: `/etc/pip.conf` sets `break-system-packages`, so Ubuntu's
 PEP 668 guard won't refuse a bare `pip install`. Use a venv or `uv` if you'd rather
 keep an environment isolated.
+
+Claude Code is installed by Anthropic's native installer as `dev`, not by a root
+`npm install -g`. Its updater swaps the whole install in place, so it has to own
+where it lives: as a root npm global it sits in `/usr/lib/node_modules` and every
+auto-update fails with `no_permissions`, asking to be re-run as root — on each
+start, forever, since the failed update is retried. The native layout is
+`~/.local/share/claude/versions/<version>` behind a `~/.local/bin/claude`
+symlink, all owned by `dev`, so updates just apply. It is unpinned because a pin
+would only fix which version the box *starts* from. `~/.local` is not on a
+volume, so a rebuild returns to the version baked into the image and it updates
+again on first run; check with `claude --version` and
+`cat ~/.claude/.last-update-result.json`.
 
 Playwright's browsers live in `/opt/playwright`, not the usual
 `~/.cache/ms-playwright`, and `PLAYWRIGHT_BROWSERS_PATH` points every playwright

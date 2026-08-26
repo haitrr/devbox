@@ -27,6 +27,26 @@ done
 chmod 600 /etc/ssh/host-keys/ssh_host_*_key
 chmod 644 /etc/ssh/host-keys/ssh_host_*_key.pub
 
+# Give the dev user access to the host's Docker daemon over the bind-mounted
+# socket. The socket is root:<docker-group> on the host, and that group's GID
+# varies per install, so it can't be baked into the image at build time — a
+# "docker" group is created (or, if the GID happens to already belong to some
+# other group, reused) matching the live socket's GID on every start, and the
+# dev user is added to it. Without the socket mounted (DOCKER_SOCK unset from
+# compose, or the file missing) this is a no-op and `docker` in the box just
+# fails to connect, same as Docker CLI anywhere with no daemon reachable.
+if [ -S /var/run/docker.sock ]; then
+    docker_gid="$(stat -c '%g' /var/run/docker.sock)"
+    docker_group="$(getent group "${docker_gid}" | cut -d: -f1)"
+    if [ -z "${docker_group}" ]; then
+        docker_group=docker
+        groupadd -g "${docker_gid}" "${docker_group}"
+    fi
+    usermod -aG "${docker_group}" "${USERNAME}"
+else
+    echo "NOTE: /var/run/docker.sock not mounted — docker in the box has no daemon to talk to." >&2
+fi
+
 # sudo needs a password (see the sudoers line in the Dockerfile). Set it from
 # SUDO_PASSWORD if provided; otherwise leave the account locked so sudo simply
 # refuses rather than silently granting root. Deliberately not exported into any
