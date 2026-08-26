@@ -67,6 +67,7 @@ Beyond the base toolchain (Rust via rustup, Node LTS, `gh`, `sccache`, `mold`,
 | Cargo | `cargo-nextest`, `cargo-expand`, `cargo-machete` |
 | Python / AI | `python3` + `pip` (3.12, `python`/`pip` aliases on PATH), `uv` + `uvx` (Astral), `code-review-graph` (Tree-sitter/MCP review graph) |
 | Browser tests | `playwright` (`@playwright/test`) with Chromium and its runtime libraries prebuilt into the image |
+| Agents | `orca` (Orca CLI, installed from the Linux desktop package — see [Orca CLI](#orca-cli)) |
 
 Versions are pinned as `ARG`s at the top of the `Dockerfile` for anything not
 taken from the Ubuntu archive. `cargo expand` additionally needs a nightly
@@ -221,6 +222,25 @@ the `GITHUB_KNOWN_HOSTS` default uses: keep a fresh clone working without a
 `.env`.
 
 If you do hit it, `rmdir CLAUDE_box.md` and create the file for real.
+
+## Orca CLI
+
+`orca` is in the image. It has no standalone package: the command is an
+entrypoint inside the Electron app, launched under `ELECTRON_RUN_AS_NODE` by a
+shim in the app bundle, so the app's `.deb` is the only way to get it. That is
+about 550MB unpacked, most of the image's growth from this addition. Nothing
+draws a window — the box runs `orca serve`, `orca status`, and the `orca ...`
+commands the Orca skills drive, all headless.
+
+Upstream names the Linux executable `orca-ide` so it won't collide with GNOME's
+Orca screen reader. This image carries no such thing, so `/usr/local/bin/orca`
+symlinks back to the name the docs, the skills, and `orca.yaml` all use.
+`orca-ide` still works.
+
+Electron's shared libraries are the same set headless Chromium needs, and
+Playwright's `--with-deps` has already installed them by the time this step
+runs; the `Dockerfile` names them again anyway so the step doesn't quietly
+depend on the block above it. Bump `ORCA_VERSION` to upgrade.
 
 ## Orca remote
 

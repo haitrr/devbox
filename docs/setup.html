@@ -432,6 +432,24 @@
     <code>-butterfish</code>, <code>-cowfish</code>. The suffix tells you which Orca session owns the
     tree.
   </div>
+
+  <h3 style="margin-top:26px">The <code>orca</code> CLI</h3>
+  <p>Separate from the pushed relay: <code>orca</code> itself is baked into the image. It has no
+  standalone package — the command is an entrypoint inside the Electron app, launched under
+  <code>ELECTRON_RUN_AS_NODE</code> by a shim in the app bundle, so the app's <code>.deb</code> is
+  the only way to get it. That is about 550MB unpacked. Nothing draws a window: the box runs
+  <code>orca serve</code>, <code>orca status</code>, and the <code>orca ...</code> commands the Orca
+  skills drive, all headless.</p>
+
+  <div class="callout" style="margin-top:14px">
+    <strong>Why the binary is called <code>orca-ide</code>.</strong> Upstream renamed the Linux
+    executable to avoid colliding with GNOME's Orca screen reader. This image carries no such thing,
+    so <code>/usr/local/bin/orca</code> symlinks back to the name the docs, the skills, and
+    <code>orca.yaml</code> all use; <code>orca-ide</code> still works. Electron's shared libraries
+    are the same set headless Chromium needs, already installed by Playwright's
+    <code>--with-deps</code> — the <code>Dockerfile</code> names them again so the step doesn't
+    quietly depend on the block above it. Bump <code>ORCA_VERSION</code> to upgrade.
+  </div>
 </section>
 
 <!-- ── WORKTREES ────────────────────────────────────────── -->

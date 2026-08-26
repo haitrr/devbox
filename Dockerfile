@@ -27,6 +27,10 @@ ARG CRG_VERSION=2.3.7
 # adding firefox and webkit roughly triples the layer.
 ARG PLAYWRIGHT_VERSION=1.62.1
 ARG PLAYWRIGHT_BROWSERS="chromium"
+# Orca (onorca.dev). No standalone CLI package exists: the `orca` command is an
+# entrypoint inside the Electron app, so the app's .deb is the only way to get it.
+# Bump to upgrade; releases are at github.com/stablyai/orca/releases.
+ARG ORCA_VERSION=1.4.188
 
 # Base toolchain + sshd.
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
@@ -262,6 +266,40 @@ RUN npm install -g "@playwright/test@${PLAYWRIGHT_VERSION}" \
     && chown -R ${USERNAME}:${USERNAME} /opt/playwright \
     && echo 'PLAYWRIGHT_BROWSERS_PATH=/opt/playwright' >> /etc/environment \
     && playwright --version
+
+# Orca CLI. Orca's Linux desktop package is also how its CLI ships — the shim in
+# resources/bin runs the app's own out/cli/index.js under ELECTRON_RUN_AS_NODE,
+# the same launcher model VS Code uses — so there is nothing lighter to install.
+# The box only ever runs it headless (`orca serve`, `orca status`, and the
+# `orca ...` commands the Orca skills drive), never the window.
+#
+# Two things the package leaves to us. First, the deb declares only its helper
+# deps (python3-gi, xdotool, at-spi2-core, xvfb); Electron's own shared libraries
+# are assumed present because a desktop install would have pulled them with a
+# display stack. Playwright's `--with-deps` above already installs that exact set
+# for headless Chromium, but naming them here keeps this step correct on its own
+# rather than silently dependent on the block above it.
+#
+# Second, the executable is `orca-ide` on Linux — upstream renamed it to avoid
+# colliding with GNOME's Orca screen reader, which this image does not carry. The
+# docs, the skills, and orca.yaml all say `orca`, so the symlink restores the
+# documented name; `orca-ide` keeps working, and the shim resolves through both.
+RUN arch="$(dpkg --print-architecture)" \
+    && curl -fsSL -o /tmp/orca.deb \
+         "https://github.com/stablyai/orca/releases/download/v${ORCA_VERSION}/orca-ide_${ORCA_VERSION}_${arch}.deb" \
+    && apt-get update \
+    && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+         /tmp/orca.deb \
+         libgtk-3-0t64 \
+         libnss3 \
+         libcups2t64 \
+         libatk-bridge2.0-0t64 \
+         libgbm1 \
+         libasound2t64 \
+    && rm -f /tmp/orca.deb \
+    && rm -rf /var/lib/apt/lists/* \
+    && ln -s /usr/bin/orca-ide /usr/local/bin/orca \
+    && orca --help > /dev/null
 
 # Create every volume mountpoint here, owned by the user. A named volume seeds
 # itself from the image's content at that path *including ownership*; when the
